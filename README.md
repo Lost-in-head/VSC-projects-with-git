@@ -25,7 +25,21 @@ You can run the app RIGHT NOW without API keys! We use realistic mock data for t
 
 ### Getting Started
 
-#### Quick Start (No Setup Needed!)
+#### Quick Start - Web UI (Recommended!)
+```bash
+bash run_web.sh
+# Open http://localhost:5000 in your browser
+# Upload a photo → See instant listing!
+```
+
+**Features:**
+- 📷 Click or drag-drop photo upload
+- ✨ Beautiful, modern interface
+- 💰 See suggested price instantly
+- 🛒 View comparable eBay listings
+- 📋 Copy listing JSON to clipboard
+
+#### Quick Start - Command Line (No Setup Needed!)
 ```bash
 cd /path/to/VSC-projects-with-git
 pip install -r requirements.txt
@@ -76,21 +90,22 @@ That's it! You'll see realistic demo data flowing through the pipeline.
 
 ## Next Steps - Development Roadmap
 
-### Phase 1: Core Pipeline (Current)
+### Phase 1: Core Pipeline ✅ COMPLETE
 - ✅ Mock image analysis
 - ✅ Mock eBay search
 - ✅ Price suggestion algorithm
 - ✅ Listing payload generation
 
-### Phase 2: Real APIs
+### Phase 2: Web Interface ✅ COMPLETE
+- ✅ Build Flask web UI for photo upload
+- ✅ Real-time preview of generated listings
+- ✅ Beautiful, responsive design
+- ✅ Copy-to-clipboard for listing JSON
+
+### Phase 3: Real APIs (Next)
 - Add your OpenAI key → Enable real image analysis
 - Add eBay credentials → Enable real product search
 - Implement error handling
-
-### Phase 3: Web Interface
-- Build Flask web UI for photo upload
-- Add real-time preview of generated listings
-- Allow editing before publishing
 
 ### Phase 4: Publishing
 - Implement eBay Sell API integration
@@ -99,7 +114,13 @@ That's it! You'll see realistic demo data flowing through the pipeline.
 
 ## Useful Commands
 
-### Run with mock data (no API keys needed!)
+### Run the Web UI (Recommended!)
+```bash
+bash run_web.sh
+```
+Then open http://localhost:5000 in your browser! 🎉
+
+### Run with mock data (command line)
 ```bash
 python src/main.py
 ```
