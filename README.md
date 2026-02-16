@@ -61,16 +61,23 @@ That's it! You'll see realistic demo data flowing through the pipeline.
 ├── src/
 │   ├── main.py                    # Main pipeline (entry point)
 │   ├── config.py                  # Load .env configuration
+│   ├── app.py                     # Flask web application ⭐
 │   ├── models/                    # Data models (future)
 │   ├── api/
 │   │   ├── openai_client.py       # OpenAI Vision (with mock fallback)
 │   │   ├── mock_openai.py         # Realistic mock data for testing
 │   │   ├── ebay_client.py         # eBay API (with mock fallback)
 │   │   └── mock_ebay.py           # Realistic eBay mock data
+│   ├── templates/                 # HTML templates
+│   │   └── index.html             # Main web UI
+│   ├── static/                    # CSS & JavaScript
+│   │   ├── app.js                 # Frontend logic (batch processing)
+│   │   └── style.css              # Beautiful gradient UI
 │   └── utils/
 │       └── helpers.py             # Utility functions
 ├── requirements.txt
 ├── .env.example
+├── run_web.sh                     # Startup script ⭐
 └── README.md
 ```
 
@@ -87,6 +94,22 @@ That's it! You'll see realistic demo data flowing through the pipeline.
 - Canon EOS R6 Camera
 - Patagonia Down Jacket
 - Dyson V15 Vacuum
+
+## Batch Processing 🚀
+
+**Upload multiple photos at once:**
+1. Click or drag-drop multiple photos
+2. Review thumbnail grid before processing
+3. Click "Generate Listings"
+4. See progress bar as each photo is processed
+5. View all results in a beautiful grid
+6. Copy individual payloads or download all as JSON
+
+**Perfect for:**
+- Selling multiple items on eBay
+- Bulk listing operations
+- Testing multiple products
+- Creating listing templates
 
 ## Next Steps - Development Roadmap
 
