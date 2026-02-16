@@ -22,63 +22,46 @@
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
-                    <h2>Drop your photo here</h2>
-                    <p>or click to browse</p>
-                    <input type="file" id="photoInput" accept="image/*" hidden>
+                    <h2>Drop your photos here</h2>
+                    <p>or click to browse (multiple files OK)</p>
+                    <input type="file" id="photoInput" accept="image/*" multiple hidden>
                 </div>
-                <p class="file-info">JPG, PNG, or GIF • Max 16MB</p>
+                <p class="file-info">JPG, PNG, or GIF • Max 16MB each • Upload 1+ photos</p>
             </section>
 
             <!-- Image Preview -->
             <div id="previewSection" class="preview-section" style="display: none;">
-                <div class="preview-container">
-                    <img id="previewImage" alt="Preview">
-                    <div class="preview-actions">
-                        <button id="clearBtn" class="btn-secondary">Clear</button>
-                        <button id="submitBtn" class="btn-primary">Generate Listing</button>
-                    </div>
+                <h3>📸 Selected Photos (<span id="photoCount">0</span>)</h3>
+                <div class="preview-grid" id="previewGrid"></div>
+                <div class="preview-actions">
+                    <button id="clearBtn" class="btn-secondary">Clear All</button>
+                    <button id="submitBtn" class="btn-primary">Generate Listings</button>
                 </div>
             </div>
 
             <!-- Loading State -->
             <div id="loadingSection" class="loading-section" style="display: none;">
                 <div class="spinner"></div>
-                <h2>Processing your image...</h2>
-                <p>Analyzing photo • Searching eBay • Calculating price</p>
+                <h2>Processing your images...</h2>
+                <p id="loadingProgress">Analyzing photos • Searching eBay • Calculating prices</p>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
+                </div>
             </div>
 
             <!-- Results Section -->
             <div id="resultsSection" class="results-section" style="display: none;">
-                <!-- Analysis Results -->
-                <div class="result-card">
-                    <h2>📝 Image Analysis</h2>
-                    <div id="analysisResults" class="info-grid"></div>
+                <div class="results-header">
+                    <h2>✅ Generated <span id="resultCount">0</span> Listings</h2>
+                    <button id="downloadAllBtn" class="btn-secondary">📥 Download All as JSON</button>
                 </div>
 
-                <!-- Comparable Listings -->
-                <div class="result-card">
-                    <h2>🛒 Comparable Listings (eBay)</h2>
-                    <div id="listingsResults" class="listings-table"></div>
-                </div>
-
-                <!-- Price Suggestion -->
-                <div class="result-card price-highlight">
-                    <h3>💰 Suggested Price</h3>
-                    <div id="priceResults" class="price-display"></div>
-                </div>
-
-                <!-- eBay Listing Payload -->
-                <div class="result-card">
-                    <h2>📦 eBay Listing (JSON)</h2>
-                    <div class="payload-container">
-                        <pre id="payloadResults"><code></code></pre>
-                        <button id="copyBtn" class="btn-secondary">Copy JSON</button>
-                    </div>
-                </div>
+                <!-- Results Grid -->
+                <div id="resultsGrid" class="results-grid"></div>
 
                 <!-- Action Buttons -->
                 <div class="action-buttons">
-                    <button id="newListingBtn" class="btn-primary">Generate Another</button>
+                    <button id="newListingBtn" class="btn-primary">Generate More</button>
                 </div>
             </div>
 
