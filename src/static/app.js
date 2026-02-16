@@ -27,6 +27,143 @@ const retryBtn = document.getElementById('retryBtn');
 let selectedFiles = [];
 let processedResults = [];
 
+// Tab Management
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+
+tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(tabName) {
+      // Update buttons
+      tabBtns.forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // Update content
+      tabContents.forEach(content => {
+            content.style.display = 'none';
+            content.classList.remove('active');
+      });
+
+      const activeTab = document.getElementById(`${tabName}Tab`);
+      activeTab.style.display = 'block';
+      activeTab.classList.add('active');
+
+      // Load dashboard when switching to it
+      if (tabName === 'dashboard') {
+            loadDashboard();
+      }
+}
+
+// Dashboard Functions
+const refreshBtn = document.getElementById('refreshBtn');
+if (refreshBtn) {
+      refreshBtn.addEventListener('click', loadDashboard);
+}
+
+async function loadDashboard() {
+      try {
+            const response = await fetch('/api/listings');
+            const listings = await response.json();
+
+            if (!response.ok) {
+                  console.error('Failed to load listings');
+                  return;
+            }
+
+            displayDashboard(listings);
+      } catch (error) {
+            console.error('Error loading dashboard:', error);
+      }
+}
+
+function displayDashboard(listings) {
+      const tbody = document.getElementById('listingsBody');
+
+      if (!listings || listings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 30px;">No listings yet. Generate some first! 📸</td></tr>';
+            updateStats(0, 0, 0);
+            return;
+      }
+
+      // Calculate stats
+      let drafts = 0, published = 0;
+      listings.forEach(l => {
+            if (l.status === 'draft') drafts++;
+            if (l.status === 'published') published++;
+      });
+
+      updateStats(listings.length, drafts, published);
+
+      // Build table rows
+      tbody.innerHTML = listings.map(listing => {
+            const date = new Date(listing.created_at).toLocaleDateString();
+            const statusClass = `status-${listing.status}`;
+            return `
+                  <tr>
+                        <td><strong>${listing.title}</strong></td>
+                        <td>${listing.brand || '-'} ${listing.model ? '(' + listing.model + ')' : ''}</td>
+                        <td>$${listing.suggested_price ? listing.suggested_price.toFixed(2) : '-'}</td>
+                        <td>
+                              <span class="status-badge ${statusClass}">${listing.status}</span>
+                        </td>
+                        <td>${date}</td>
+                        <td>
+                              <div class="action-icons">
+                                    <button class="action-btn" onclick="viewListing(${listing.id})" title="View Details">👁️</button>
+                                    <button class="action-btn" onclick="togglePublished(${listing.id}, '${listing.status}')" title="Toggle Status">${listing.status === 'draft' ? '📤' : '📋'}</button>
+                                    <button class="action-btn danger" onclick="deleteListing(${listing.id})" title="Delete">🗑️</button>
+                              </div>
+                        </td>
+                  </tr>
+            `;
+      }).join('');
+}
+
+function updateStats(total, drafts, published) {
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('draftCount').textContent = drafts;
+      document.getElementById('publishedCount').textContent = published;
+}
+
+function viewListing(listingId) {
+      alert(`View listing ${listingId} - Full details view coming soon!`);
+}
+
+async function togglePublished(listingId, currentStatus) {
+      const newStatus = currentStatus === 'draft' ? 'published' : 'draft';
+      try {
+            const response = await fetch(`/api/listings/${listingId}/status`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: newStatus })
+            });
+
+            if (response.ok) {
+                  loadDashboard();
+            }
+      } catch (error) {
+            console.error('Error updating status:', error);
+      }
+}
+
+async function deleteListing(listingId) {
+      if (!confirm('Are you sure you want to delete this listing?')) return;
+
+      try {
+            const response = await fetch(`/api/listings/${listingId}`, {
+                  method: 'DELETE'
+            });
+
+            if (response.ok) {
+                  loadDashboard();
+            }
+      } catch (error) {
+            console.error('Error deleting listing:', error);
+      }
+}
+
 // Event Listeners
 uploadBox.addEventListener('click', () => photoInput.click());
 uploadBox.addEventListener('dragover', handleDragOver);
@@ -212,6 +349,7 @@ function updateProgress(current, total, message) {
       const percentage = ((current + 1) / total) * 100;
       progressFill.style.width = percentage + '%';
       loadingProgress.textContent = message;
+}
 
 function displayBatchResults() {
       const successCount = processedResults.filter(r => r.success).length;

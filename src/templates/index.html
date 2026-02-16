@@ -1,85 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eBay Listing Generator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>eBay Listing Generator</title>
+      <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
-    <div class="container">
-        <header>
-            <h1>📷 eBay Listing Generator</h1>
-            <p>Upload a photo → Get an instant listing with suggested price</p>
-        </header>
+      <div class="container">
+            <header>
+                  <h1>📷 eBay Listing Generator</h1>
+                  <p>Upload a photo → Get an instant listing with suggested price</p>
+                  <div class="nav-tabs">
+                        <button class="tab-btn active" data-tab="upload">📤 Generate Listings</button>
+                        <button class="tab-btn" data-tab="dashboard">📊 Saved Listings</button>
+                  </div>
+            </header>
 
-        <main>
-            <!-- Upload Section -->
-            <section class="upload-section">
-                <div class="upload-box" id="uploadBox">
-                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                    </svg>
-                    <h2>Drop your photos here</h2>
-                    <p>or click to browse (multiple files OK)</p>
-                    <input type="file" id="photoInput" accept="image/*" multiple hidden>
-                </div>
-                <p class="file-info">JPG, PNG, or GIF • Max 16MB each • Upload 1+ photos</p>
-            </section>
+            <main>
+                  <!-- Upload Tab Content -->
+                  <div id="uploadTab" class="tab-content active">
+                  <section class="upload-section">
+                        <div class="upload-box" id="uploadBox">
+                              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                              </svg>
+                              <h2>Drop your photos here</h2>
+                              <p>or click to browse (multiple files OK)</p>
+                              <input type="file" id="photoInput" accept="image/*" multiple hidden>
+                        </div>
+                        <p class="file-info">JPG, PNG, or GIF • Max 16MB each • Upload 1+ photos</p>
+                  </section>
 
-            <!-- Image Preview -->
-            <div id="previewSection" class="preview-section" style="display: none;">
-                <h3>📸 Selected Photos (<span id="photoCount">0</span>)</h3>
-                <div class="preview-grid" id="previewGrid"></div>
-                <div class="preview-actions">
-                    <button id="clearBtn" class="btn-secondary">Clear All</button>
-                    <button id="submitBtn" class="btn-primary">Generate Listings</button>
-                </div>
-            </div>
+                  <!-- Image Preview -->
+                  <div id="previewSection" class="preview-section hidden">
+                        <h3>📸 Selected Photos (<span id="photoCount">0</span>)</h3>
+                        <div class="preview-grid" id="previewGrid"></div>
+                        <div class="preview-actions">
+                              <button id="clearBtn" class="btn-secondary">Clear All</button>
+                              <button id="submitBtn" class="btn-primary">Generate Listings</button>
+                        </div>
+                  </div>
 
-            <!-- Loading State -->
-            <div id="loadingSection" class="loading-section" style="display: none;">
-                <div class="spinner"></div>
-                <h2>Processing your images...</h2>
-                <p id="loadingProgress">Analyzing photos • Searching eBay • Calculating prices</p>
-                <div class="progress-bar">
-                    <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
-                </div>
-            </div>
+                  <!-- Loading State -->
+                  <div id="loadingSection" class="loading-section hidden">
+                        <div class="spinner"></div>
+                        <h2>Processing your images...</h2>
+                        <p id="loadingProgress">Analyzing photos • Searching eBay • Calculating prices</p>
+                        <div class="progress-bar">
+                              <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                  </div>
 
-            <!-- Results Section -->
-            <div id="resultsSection" class="results-section" style="display: none;">
-                <div class="results-header">
-                    <h2>✅ Generated <span id="resultCount">0</span> Listings</h2>
-                    <button id="downloadAllBtn" class="btn-secondary">📥 Download All as JSON</button>
-                </div>
+                  <!-- Results Section -->
+                  <div id="resultsSection" class="results-section hidden">
+                        <div class="results-header">
+                              <h2>✅ Generated <span id="resultCount">0</span> Listings</h2>
+                              <button id="downloadAllBtn" class="btn-secondary">📥 Download All as JSON</button>
+                        </div>
 
-                <!-- Results Grid -->
-                <div id="resultsGrid" class="results-grid"></div>
+                        <!-- Results Grid -->
+                        <div id="resultsGrid" class="results-grid"></div>
 
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <button id="newListingBtn" class="btn-primary">Generate More</button>
-                </div>
-            </div>
+                        <!-- Action Buttons -->
+                        <div class="action-buttons">
+                              <button id="newListingBtn" class="btn-primary">Generate More</button>
+                        </div>
+                  </div>
 
-            <!-- Error State -->
-            <div id="errorSection" class="error-section" style="display: none;">
-                <div class="error-box">
-                    <h2>❌ Error</h2>
-                    <p id="errorMessage"></p>
-                    <button id="retryBtn" class="btn-primary">Try Again</button>
-                </div>
-            </div>
-        </main>
+                  <!-- Error State -->
+                  <div id="errorSection" class="error-section hidden">
+                        <div class="error-box">
+                              <h2>❌ Error</h2>
+                              <p id="errorMessage"></p>
+                              <button id="retryBtn" class="btn-primary">Try Again</button>
+                        </div>
+                  </div>
+                  </div> <!-- end uploadTab -->
 
-        <footer>
-            <p>💡 Tip: Works with real OpenAI/eBay APIs when credentials are added to .env</p>
-        </footer>
-    </div>
+                  <!-- Dashboard Tab Content -->
+                  <div id="dashboardTab" class="tab-content" style="display: none;">
+                        <div class="dashboard-header">
+                              <div>
+                                    <h2>📊 Saved Listings</h2>
+                                    <div class="stats-row">
+                                          <div class="stat-card">
+                                                <div class="stat-count" id="totalCount">0</div>
+                                                <div class="stat-label">Total</div>
+                                          </div>
+                                          <div class="stat-card">
+                                                <div class="stat-count" id="draftCount">0</div>
+                                                <div class="stat-label">Drafts</div>
+                                          </div>
+                                          <div class="stat-card">
+                                                <div class="stat-count" id="publishedCount">0</div>
+                                                <div class="stat-label">Published</div>
+                                          </div>
+                                    </div>
+                              </div>
+                              <button id="refreshBtn" class="btn-secondary">🔄 Refresh</button>
+                        </div>
 
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
+                        <!-- Listings Table -->
+                        <div class="listings-container">
+                              <table class="listings-table" id="listingsTable">
+                                    <thead>
+                                          <tr>
+                                                <th>Title</th>
+                                                <th>Brand / Model</th>
+                                                <th>Price</th>
+                                                <th>Status</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                          </tr>
+                                    </thead>
+                                    <tbody id="listingsBody">
+                                          <tr><td colspan="6" style="text-align: center; padding: 30px;">No listings yet. Generate some first! 📸</td></tr>
+                                    </tbody>
+                              </table>
+                        </div>
+                  </div> <!-- end dashboardTab -->
+            </main>
+
+            <footer>
+                  <p>💡 Tip: Works with real OpenAI/eBay APIs when credentials are added to .env</p>
+            </footer>
+      </div>
+
+      <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
+
 </html>
