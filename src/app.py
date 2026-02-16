@@ -11,6 +11,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
 from src.api.openai_client import describe_image
 from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload
+from src.database import init_db, save_listing, get_all_listings, get_listing, update_listing_status, delete_listing, get_stats
 
 
 def create_app():
@@ -22,13 +23,55 @@ def create_app():
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
     app.config['JSON_SORT_KEYS'] = False
     
+    # Initialize database
+    init_db()
+    
     # Ensure upload folder exists
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
     @app.route('/')
     def index():
         """Home page - upload form"""
-        return render_template('index.html')
+        stats = get_stats()
+        return render_template('index.html', stats=stats)
+    
+    @app.route('/api/listings', methods=['GET'])
+    def get_listings():
+        """Get all saved listings"""
+        listings = get_all_listings()
+        return jsonify(listings), 200
+    
+    @app.route('/api/listings/<int:listing_id>', methods=['GET'])
+    def get_listing_detail(listing_id):
+        """Get a specific listing"""
+        listing = get_listing(listing_id)
+        if not listing:
+            return jsonify({'error': 'Listing not found'}), 404
+        return jsonify(listing), 200
+    
+    @app.route('/api/listings/<int:listing_id>/status', methods=['PATCH'])
+    def update_status(listing_id):
+        """Update listing status"""
+        data = request.get_json()
+        status = data.get('status', 'draft')
+        
+        if status not in ['draft', 'published', 'archived']:
+            return jsonify({'error': 'Invalid status'}), 400
+        
+        success = update_listing_status(listing_id, status)
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Update failed'}), 500
+    
+    @app.route('/api/listings/<int:listing_id>', methods=['DELETE'])
+    def delete_listing_endpoint(listing_id):
+        """Delete a listing"""
+        success = delete_listing(listing_id)
+        if success:
+            return jsonify({'success': True}), 200
+        else:
+            return jsonify({'error': 'Delete failed'}), 500
     
     @app.route('/api/upload', methods=['POST'])
     def upload_file():
@@ -54,7 +97,7 @@ def create_app():
             file.save(filepath)
             
             # Process the image through the pipeline
-            result = process_listing(filepath)
+            result = process_listing(filepath, filename)
             
             # Clean up uploaded file after processing
             if os.path.exists(filepath):
@@ -85,10 +128,10 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def process_listing(image_path):
+def process_listing(image_path, filename='unknown.jpg'):
     """
     Process image through complete pipeline
-    Returns dict with all listing information
+    Returns dict with all listing information and saves to database
     """
     try:
         # Step 1: Analyze image
@@ -106,20 +149,32 @@ def process_listing(image_path):
         
         # Step 4: Build listing payload
         print(f"📦 Building eBay listing...")
+        title = image_analysis.get('brand', 'Item')
         payload = build_listing_payload(
-            title=image_analysis.get('brand', 'Item'),
+            title=title,
             description=format_description(image_analysis),
             price=suggested_price,
             condition=image_analysis.get('condition', 'Unknown')
         )
         
+        # Step 5: Save to database
+        listing_id = save_listing(
+            title=title,
+            filename=filename,
+            analysis=image_analysis,
+            comparable_listings=listings,
+            suggested_price=suggested_price,
+            payload=payload
+        )
+        
         return {
             'success': True,
+            'listing_id': listing_id,
             'analysis': image_analysis,
             'comparable_listings': listings,
             'suggested_price': suggested_price,
             'payload': payload,
-            'message': '✅ Listing generated successfully!'
+            'message': '✅ Listing generated and saved successfully!'
         }
         
     except Exception as e:
