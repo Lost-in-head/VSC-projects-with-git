@@ -189,19 +189,19 @@ cp .env.example .env
 
 ## Testing the Pipeline
 
-**Test 1: No Setup Required**
+### Test 1: No Setup Required
 
 - Run `python src/main.py`
 - You'll see realistic mock data flowing through
 - The pipeline outputs a complete eBay listing JSON
 
-**Test 2: With Real Image**
+### Test 2: With Real Image
 
 - Place any `.jpg` file at project root and name it `sample_item.jpg`
 - Run `python src/main.py`
 - (In mock mode, it still uses demo analysis)
 
-**Test 3: With OpenAI Key**
+### Test 3: With OpenAI Key
 
 - Add `OPENAI_API_KEY=sk-...` to `.env`
 - Set `USE_OPENAI_MOCK=False` in `.env`
@@ -223,7 +223,7 @@ cp .env.example .env
 3. Get Client ID and Client Secret
 4. Add to `.env`:
 
-   ```
+   ```bash
    EBAY_CLIENT_ID=your-id
    EBAY_CLIENT_SECRET=your-secret
    ```
