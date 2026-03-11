@@ -15,11 +15,7 @@ from src.config import (
     EBAY_API_ENDPOINT,
     USE_EBAY_MOCK,
 )
-from src.api.mock_ebay import (
-    search_ebay_mock,
-    suggest_price_mock,
-    build_listing_payload_mock,
-)
+from src.api.mock_ebay import search_ebay_mock
 
 
 def get_ebay_token() -> str:
@@ -130,4 +126,33 @@ def build_listing_payload(title: str, description: str, price: float, condition:
             "currency": "USD"
         },
         "condition": condition,
+    }
+
+
+
+def publish_listing(payload: dict) -> dict:
+    """Publish listing payload to eBay (mock or real)."""
+    if USE_EBAY_MOCK or not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
+        sku = payload.get("sku", "AUTO_GENERATED_SKU")
+        return {
+            "status": "published",
+            "external_listing_id": f"MOCK-{sku}",
+            "mode": "mock",
+        }
+
+    token = get_ebay_token()
+    endpoint = f"{EBAY_API_ENDPOINT}/sell/inventory/v1/inventory_item/{payload['sku']}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Content-Language": "en-US",
+    }
+
+    response = requests.put(endpoint, headers=headers, json=payload, timeout=15)
+    response.raise_for_status()
+
+    return {
+        "status": "published",
+        "external_listing_id": payload["sku"],
+        "mode": "real",
     }

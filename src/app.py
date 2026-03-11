@@ -10,8 +10,8 @@ from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
 from src.api.openai_client import describe_image
-from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload
-from src.database import init_db, save_listing, get_all_listings, get_listing, update_listing_status, delete_listing, get_stats
+from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload, publish_listing
+from src.database import init_db, save_listing, get_all_listings, get_listing, update_listing_status, delete_listing, get_stats, record_publish_result
 
 
 def create_app():
@@ -52,7 +52,7 @@ def create_app():
     @app.route('/api/listings/<int:listing_id>/status', methods=['PATCH'])
     def update_status(listing_id):
         """Update listing status"""
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         status = data.get('status', 'draft')
         
         if status not in ['draft', 'published', 'archived']:
@@ -62,7 +62,7 @@ def create_app():
         if success:
             return jsonify({'success': True}), 200
         else:
-            return jsonify({'error': 'Update failed'}), 500
+            return jsonify({'error': 'Listing not found or update failed'}), 404
     
     @app.route('/api/listings/<int:listing_id>', methods=['DELETE'])
     def delete_listing_endpoint(listing_id):
@@ -71,7 +71,42 @@ def create_app():
         if success:
             return jsonify({'success': True}), 200
         else:
-            return jsonify({'error': 'Delete failed'}), 500
+            return jsonify({'error': 'Listing not found or delete failed'}), 404
+
+
+    @app.route('/api/listings/<int:listing_id>/publish', methods=['POST'])
+    def publish_listing_endpoint(listing_id):
+        """Publish a listing and persist publish metadata."""
+        listing = get_listing(listing_id)
+        if not listing:
+            return jsonify({'error': 'Listing not found'}), 404
+
+        if listing.get('status') == 'published':
+            return jsonify({'error': 'Listing already published'}), 409
+
+        try:
+            publish_result = publish_listing(listing['payload'])
+            external_listing_id = publish_result.get('external_listing_id')
+            record_publish_result(
+                listing_id,
+                published=True,
+                external_listing_id=external_listing_id,
+            )
+            updated_listing = get_listing(listing_id)
+            return jsonify({
+                'success': True,
+                'listing_id': listing_id,
+                'external_listing_id': external_listing_id,
+                'status': updated_listing.get('status') if updated_listing else 'published',
+            }), 200
+        except Exception as e:
+            error_message = str(e)
+            record_publish_result(
+                listing_id,
+                published=False,
+                error_message=error_message,
+            )
+            return jsonify({'error': f'Publish failed: {error_message}'}), 502
     
     @app.route('/api/upload', methods=['POST'])
     def upload_file():
@@ -123,6 +158,60 @@ def create_app():
     return app
 
 
+
+
+def normalize_analysis_cards(image_analysis):
+    """Normalize analysis to a list of card/item analyses."""
+    if isinstance(image_analysis, dict) and isinstance(image_analysis.get('cards'), list):
+        cards = [card for card in image_analysis['cards'] if isinstance(card, dict)]
+        return cards or [image_analysis]
+    return [image_analysis]
+
+
+def build_search_query(analysis):
+    """Build search query for general items and trading cards."""
+    base = [analysis.get('brand', ''), analysis.get('model', '')]
+    category = (analysis.get('category') or '').lower()
+    if 'card' in category:
+        for key in ('player_name', 'set_name', 'year', 'card_number', 'grade'):
+            value = analysis.get(key)
+            if value:
+                base.append(str(value))
+    query = ' '.join(part for part in base if part).strip()
+    return query or 'collectible trading card'
+
+
+def generate_listing_from_analysis(analysis, filename):
+    """Generate and persist one listing from one analyzed item/card."""
+    search_query = build_search_query(analysis)
+    listings = search_ebay(search_query, limit=8)
+    suggested_price = suggest_price(listings)
+
+    title = f"{analysis.get('brand', 'Item')} {analysis.get('model', '')}".strip()
+    payload = build_listing_payload(
+        title=title,
+        description=format_description(analysis),
+        price=suggested_price,
+        condition=analysis.get('condition', 'Unknown')
+    )
+
+    listing_id = save_listing(
+        title=title,
+        filename=filename,
+        analysis=analysis,
+        comparable_listings=listings,
+        suggested_price=suggested_price,
+        payload=payload
+    )
+
+    return {
+        'listing_id': listing_id,
+        'analysis': analysis,
+        'comparable_listings': listings,
+        'suggested_price': suggested_price,
+        'payload': payload,
+    }
+
 def allowed_file(filename):
     """Check if uploaded file is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -130,53 +219,37 @@ def allowed_file(filename):
 
 def process_listing(image_path, filename='unknown.jpg'):
     """
-    Process image through complete pipeline
-    Returns dict with all listing information and saves to database
+    Process image through complete pipeline.
+    Supports either one detected item/card or multiple cards in a single image.
     """
     try:
-        # Step 1: Analyze image
         print(f"📷 Analyzing uploaded image...")
         image_analysis = describe_image(image_path)
-        
-        # Step 2: Search eBay for similar items
+        analyses = normalize_analysis_cards(image_analysis)
+
         print(f"🛒 Searching eBay for similar items...")
-        search_query = f"{image_analysis.get('brand', '')} {image_analysis.get('model', '')}"
-        listings = search_ebay(search_query, limit=5)
-        
-        # Step 3: Calculate suggested price
-        print(f"💰 Calculating suggested price...")
-        suggested_price = suggest_price(listings)
-        
-        # Step 4: Build listing payload
-        print(f"📦 Building eBay listing...")
-        title = image_analysis.get('brand', 'Item')
-        payload = build_listing_payload(
-            title=title,
-            description=format_description(image_analysis),
-            price=suggested_price,
-            condition=image_analysis.get('condition', 'Unknown')
-        )
-        
-        # Step 5: Save to database
-        listing_id = save_listing(
-            title=title,
-            filename=filename,
-            analysis=image_analysis,
-            comparable_listings=listings,
-            suggested_price=suggested_price,
-            payload=payload
-        )
-        
+        results = [generate_listing_from_analysis(analysis, filename) for analysis in analyses]
+
+        if len(results) == 1:
+            result = results[0]
+            return {
+                'success': True,
+                'listing_id': result['listing_id'],
+                'analysis': result['analysis'],
+                'comparable_listings': result['comparable_listings'],
+                'suggested_price': result['suggested_price'],
+                'payload': result['payload'],
+                'message': '✅ Listing generated and saved successfully!'
+            }
+
         return {
             'success': True,
-            'listing_id': listing_id,
-            'analysis': image_analysis,
-            'comparable_listings': listings,
-            'suggested_price': suggested_price,
-            'payload': payload,
-            'message': '✅ Listing generated and saved successfully!'
+            'mode': 'multi_card',
+            'cards_detected': len(results),
+            'card_results': results,
+            'message': f'✅ Generated {len(results)} listing drafts from one photo.'
         }
-        
+
     except Exception as e:
         print(f"❌ Error processing listing: {e}")
         return {

@@ -32,13 +32,15 @@ const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
 tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab, btn));
 });
 
-function switchTab(tabName) {
+function switchTab(tabName, clickedBtn = null) {
       // Update buttons
       tabBtns.forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
+      if (clickedBtn) {
+            clickedBtn.classList.add('active');
+      }
 
       // Update content
       tabContents.forEach(content => {

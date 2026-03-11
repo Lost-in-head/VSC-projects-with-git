@@ -24,3 +24,10 @@ def test_search_ebay_mock_returns_limited_results():
     assert len(results) == 3
     assert all("title" in item and "price" in item and "url" in item for item in results)
     assert all(isinstance(item["price"], float) for item in results)
+
+
+def test_describe_image_mock_supports_multi_card_shape():
+    result = describe_image_mock("multi_cards.jpg")
+    assert "cards" in result
+    assert isinstance(result["cards"], list)
+    assert len(result["cards"]) >= 2

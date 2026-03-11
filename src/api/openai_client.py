@@ -14,7 +14,8 @@ def describe_image(image_path: str) -> dict:
     Falls back to mock if USE_OPENAI_MOCK is True or API key not set.
     
     Returns:
-        dict with keys: brand, model, category, condition, features
+        dict with either single-item keys (brand/model/...) or
+        a multi-item shape: {"cards": [ ... ]} for photos containing several cards.
     """
     
     # Use mock if enabled or no API key
@@ -49,14 +50,30 @@ def describe_image(image_path: str) -> dict:
     }
     
     prompt = """
-    Analyze this item photo and provide a structured JSON response with:
-    - brand: The brand/manufacturer (or "Unknown")
-    - model: Specific model name or description
-    - category: eBay category (e.g., "Electronics", "Clothing", "Home & Garden")
-    - condition: One of (New, Like New, Very Good, Good, Acceptable)
-    - features: List of 3-5 key features visible in the photo
-    - estimated_value_range: Rough price estimate (e.g., "$25-50")
-    
+    Analyze this photo for resale listing generation.
+
+    If there is ONE primary item, return JSON object with:
+    - brand, model, category, condition, features, estimated_value_range
+
+    If there are MULTIPLE trading cards visible, return:
+    {
+      "cards": [
+        {
+          "brand": "Topps/Panini/etc",
+          "model": "Card title",
+          "category": "Sports Trading Cards",
+          "condition": "Near Mint/Good/etc",
+          "features": ["feature1", "feature2"],
+          "estimated_value_range": "$X-Y",
+          "player_name": "...",
+          "set_name": "...",
+          "year": "...",
+          "card_number": "...",
+          "grade": "Ungraded/PSA 9/etc"
+        }
+      ]
+    }
+
     Return ONLY valid JSON, no extra text.
     """
     

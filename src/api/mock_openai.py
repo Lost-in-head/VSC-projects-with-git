@@ -13,6 +13,39 @@ def describe_image_mock(image_path: str) -> Dict:
     """
     
     # Realistic mock data for testing
+
+
+    if any(token in image_path.lower() for token in ["multi", "lot", "cards"]):
+        return {
+            "cards": [
+                {
+                    "brand": "Topps",
+                    "model": "Shohei Ohtani Rookie Card",
+                    "category": "Sports Trading Cards",
+                    "condition": "Near Mint",
+                    "features": ["2018 Topps Update", "Card #US1", "Angels"],
+                    "estimated_value_range": "$120-220",
+                    "player_name": "Shohei Ohtani",
+                    "set_name": "Topps Update",
+                    "year": "2018",
+                    "card_number": "US1",
+                    "grade": "Ungraded",
+                },
+                {
+                    "brand": "Topps",
+                    "model": "Aaron Judge Rookie Card",
+                    "category": "Sports Trading Cards",
+                    "condition": "Very Good",
+                    "features": ["2017 Topps", "Card #287", "Yankees"],
+                    "estimated_value_range": "$40-90",
+                    "player_name": "Aaron Judge",
+                    "set_name": "Topps",
+                    "year": "2017",
+                    "card_number": "287",
+                    "grade": "Ungraded",
+                }
+            ]
+        }
     MOCK_ITEMS = [
         {
             "brand": "Apple",
