@@ -3,6 +3,17 @@
  * Handles batch file uploads, drag-drop, and batch results display
  */
 
+// HTML escaping utility to prevent XSS when injecting API data into the DOM
+function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+}
+
 // DOM Elements
 const uploadBox = document.getElementById('uploadBox');
 const photoInput = document.getElementById('photoInput');
@@ -101,20 +112,20 @@ function displayDashboard(listings) {
       // Build table rows
       tbody.innerHTML = listings.map(listing => {
             const date = new Date(listing.created_at).toLocaleDateString();
-            const statusClass = `status-${listing.status}`;
+            const statusClass = `status-${escapeHtml(listing.status)}`;
             return `
                   <tr>
-                        <td><strong>${listing.title}</strong></td>
-                        <td>${listing.brand || '-'} ${listing.model ? '(' + listing.model + ')' : ''}</td>
+                        <td><strong>${escapeHtml(listing.title)}</strong></td>
+                        <td>${escapeHtml(listing.brand || '-')} ${listing.model ? '(' + escapeHtml(listing.model) + ')' : ''}</td>
                         <td>$${listing.suggested_price ? listing.suggested_price.toFixed(2) : '-'}</td>
                         <td>
-                              <span class="status-badge ${statusClass}">${listing.status}</span>
+                              <span class="status-badge ${statusClass}">${escapeHtml(listing.status)}</span>
                         </td>
-                        <td>${date}</td>
+                        <td>${escapeHtml(date)}</td>
                         <td>
                               <div class="action-icons">
                                     <button class="action-btn" onclick="viewListing(${listing.id})" title="View Details">👁️</button>
-                                    <button class="action-btn" onclick="togglePublished(${listing.id}, '${listing.status}')" title="Toggle Status">${listing.status === 'draft' ? '📤' : '📋'}</button>
+                                    <button class="action-btn" onclick="togglePublished(${listing.id}, '${escapeHtml(listing.status)}')" title="Toggle Status">${listing.status === 'draft' ? '📤' : '📋'}</button>
                                     <button class="action-btn danger" onclick="deleteListing(${listing.id})" title="Delete">🗑️</button>
                               </div>
                         </td>
@@ -361,8 +372,18 @@ function displayBatchResults() {
 
       processedResults.forEach((result, index) => {
             if (result.success) {
-                  const card = createResultCard(result.data, result.filename, index);
-                  resultsGrid.appendChild(card);
+                  const data = result.data;
+                  if (data.mode === 'multi_card' && Array.isArray(data.card_results)) {
+                        // Multi-card response: render a card for each detected item
+                        data.card_results.forEach((cardResult, cardIndex) => {
+                              const label = `${result.filename} (Card ${cardIndex + 1})`;
+                              const card = createResultCard(cardResult, label, index);
+                              resultsGrid.appendChild(card);
+                        });
+                  } else {
+                        const card = createResultCard(data, result.filename, index);
+                        resultsGrid.appendChild(card);
+                  }
             } else {
                   const errorCard = createErrorCard(result.filename, result.error);
                   resultsGrid.appendChild(errorCard);
@@ -382,7 +403,7 @@ function createResultCard(data, filename, index) {
       let featuresList = '';
       if (analysis.features) {
             const features = Array.isArray(analysis.features) ? analysis.features : [analysis.features];
-            featuresList = features.map(f => `<li>${f}</li>`).join('');
+            featuresList = features.map(f => `<li>${escapeHtml(f)}</li>`).join('');
       }
 
       // Build listings table
@@ -390,7 +411,7 @@ function createResultCard(data, filename, index) {
       if (listings && listings.length > 0) {
             const rows = listings.map(item => `
                   <tr>
-                        <td style="font-size: 0.9em;">${item.title || 'Unknown'}</td>
+                        <td style="font-size: 0.9em;">${escapeHtml(item.title || 'Unknown')}</td>
                         <td>$${parseFloat(item.price).toFixed(0)}</td>
                   </tr>
             `).join('');
@@ -406,12 +427,12 @@ function createResultCard(data, filename, index) {
 
       card.innerHTML = `
             <h3 style="margin: 0 0 15px 0; color: #333; word-break: break-word;">
-                  📷 ${filename}
+                  📷 ${escapeHtml(filename)}
             </h3>
             <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-                  <p style="margin: 4px 0; font-size: 0.9em;"><strong>${analysis.brand || 'Unknown'} ${analysis.model || ''}</strong></p>
-                  <p style="margin: 4px 0; font-size: 0.85em; color: #666;">${analysis.category || 'Unknown'}</p>
-                  <p style="margin: 4px 0; font-size: 0.85em; color: #666;">Condition: ${analysis.condition || 'Unknown'}</p>
+                  <p style="margin: 4px 0; font-size: 0.9em;"><strong>${escapeHtml(analysis.brand || 'Unknown')} ${escapeHtml(analysis.model || '')}</strong></p>
+                  <p style="margin: 4px 0; font-size: 0.85em; color: #666;">${escapeHtml(analysis.category || 'Unknown')}</p>
+                  <p style="margin: 4px 0; font-size: 0.85em; color: #666;">Condition: ${escapeHtml(analysis.condition || 'Unknown')}</p>
             </div>
             ${featuresList ? `<ul style="margin: 10px 0; padding-left: 20px; font-size: 0.85em;">${featuresList}</ul>` : ''}
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; border-radius: 8px; text-align: center; margin: 15px 0;">
@@ -435,8 +456,8 @@ function createErrorCard(filename, error) {
       card.style.borderLeft = '4px solid #f44336';
 
       card.innerHTML = `
-            <h3 style="margin: 0 0 10px 0; color: #f44336;">❌ ${filename}</h3>
-            <p style="margin: 0; color: #c62828; font-size: 0.9em;">${error}</p>
+            <h3 style="margin: 0 0 10px 0; color: #f44336;">❌ ${escapeHtml(filename)}</h3>
+            <p style="margin: 0; color: #c62828; font-size: 0.9em;">${escapeHtml(error)}</p>
       `;
 
       return card;

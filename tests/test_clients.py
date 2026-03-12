@@ -24,3 +24,11 @@ def test_build_listing_payload_shape():
     payload = build_listing_payload("Test Title", "Test desc", 299.99, "Like New")
     assert payload["price"]["value"] == "299.99"
     assert payload["condition"] == "Like New"
+
+
+def test_build_listing_payload_generates_unique_skus():
+    payload1 = build_listing_payload("Item A", "Desc A", 10.00)
+    payload2 = build_listing_payload("Item B", "Desc B", 20.00)
+    assert payload1["sku"] != payload2["sku"]
+    assert payload1["sku"].startswith("LISTING-")
+    assert payload2["sku"].startswith("LISTING-")

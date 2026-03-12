@@ -45,6 +45,20 @@ def test_update_status_handles_empty_json_body(client):
     assert response.status_code == 404
 
 
+def test_upload_returns_500_on_processing_failure(client, monkeypatch):
+    """upload_file should return HTTP 500 when the listing pipeline fails."""
+    import io
+    monkeypatch.setattr('src.app.process_listing', lambda path, filename: {
+        'success': False,
+        'error': 'mock pipeline failure',
+        'message': '❌ Failed to generate listing',
+    })
+    data = {'photo': (io.BytesIO(b'fake image data'), 'test.jpg')}
+    response = client.post('/api/upload', data=data, content_type='multipart/form-data')
+    assert response.status_code == 500
+    assert response.get_json()['success'] is False
+
+
 
 def test_publish_listing_not_found_returns_404(client):
     response = client.post('/api/listings/999/publish')
