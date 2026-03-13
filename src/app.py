@@ -5,6 +5,7 @@ Provides a user-friendly interface to upload photos and generate listings
 
 import os
 import json
+import uuid
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
@@ -125,11 +126,10 @@ def create_app():
             if not allowed_file(file.filename):
                 return jsonify({'error': 'Invalid file type. Use JPG, PNG, or GIF'}), 400
             
-            # Save uploaded file
+            # Save uploaded file with a unique prefix to avoid collisions
             filename = secure_filename(file.filename)
-            timestamp = Path(UPLOAD_FOLDER).glob('*')  # Get next number
-            upload_count = len(list(timestamp)) + 1
-            filename = f"{upload_count}_{filename}"
+            unique_prefix = uuid.uuid4().hex[:12]
+            filename = f"{unique_prefix}_{filename}"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
@@ -140,7 +140,9 @@ def create_app():
             if os.path.exists(filepath):
                 os.remove(filepath)
             
-            return jsonify(result), 200
+            # Return appropriate HTTP status based on processing outcome
+            status_code = 200 if result.get('success') else 500
+            return jsonify(result), status_code
             
         except Exception as e:
             return jsonify({'error': f'Processing failed: {str(e)}'}), 500
