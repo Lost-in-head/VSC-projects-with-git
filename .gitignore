@@ -76,6 +76,22 @@ lumo*
 github/
 Desktop.code-workspace
 
+# Mobile app (React Native / Expo)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+mobile/*.jks
+mobile/*.p8
+mobile/*.p12
+mobile/*.key
+mobile/*.mobileprovision
+mobile/.env
+mobile/.env.*
+!mobile/.env.example
+
 # Keep these (good)
 !tests/test_smoke.py
 
