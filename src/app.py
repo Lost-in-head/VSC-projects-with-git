@@ -183,6 +183,28 @@ def build_search_query(analysis):
     return query or 'collectible trading card'
 
 
+def _build_listing_title(analysis):
+    """
+    Build an optimised eBay listing title from image analysis.
+
+    For trading-card categories the player name is the most important
+    search keyword, so it is prepended when it is not already present
+    in the model field.  For all other categories the legacy
+    "{brand} {model}" format is used.
+    """
+    brand = analysis.get('brand', 'Item')
+    model = analysis.get('model', '')
+    category = analysis.get('category', '').lower()
+
+    if 'card' in category:
+        player_name = analysis.get('player_name', '')
+        # Only prepend player_name when it is absent from the model string
+        if player_name and player_name.lower() not in model.lower():
+            return f"{player_name} {brand} {model}".strip()
+
+    return f"{brand} {model}".strip()
+
+
 def generate_listing_from_analysis(analysis, filename):
     """Generate and persist one listing from one analyzed item/card."""
     search_query = build_search_query(analysis)
@@ -195,7 +217,7 @@ def generate_listing_from_analysis(analysis, filename):
     else:
         price_warning = False
 
-    title = f"{analysis.get('brand', 'Item')} {analysis.get('model', '')}".strip()
+    title = _build_listing_title(analysis)
     payload = build_listing_payload(
         title=title,
         description=format_description(analysis),
@@ -292,7 +314,19 @@ def format_description(analysis):
     
     if analysis.get('condition'):
         parts.append(f"**Condition**: {analysis['condition']}")
-    
+
+    # Trading-card specific fields
+    card_fields = [
+        ('player_name', 'Player'),
+        ('set_name', 'Set'),
+        ('year', 'Year'),
+        ('card_number', 'Card Number'),
+        ('grade', 'Grade'),
+    ]
+    for key, label in card_fields:
+        if analysis.get(key):
+            parts.append(f"**{label}**: {analysis[key]}")
+
     if analysis.get('grading_notes'):
         notes = analysis['grading_notes']
         if isinstance(notes, list):

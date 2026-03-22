@@ -8,6 +8,7 @@ import json
 import uuid
 import requests
 from statistics import median
+from src.utils.helpers import clean_title
 from src.config import (
     EBAY_CLIENT_ID,
     EBAY_CLIENT_SECRET,
@@ -103,7 +104,9 @@ def suggest_price(listings: list) -> float:
     """Calculate suggested price from comparable listings (median)."""
     if not listings:
         return None
-    prices = [l["price"] for l in listings]
+    prices = [l["price"] for l in listings if "price" in l]
+    if not prices:
+        return None
     return round(median(prices), 2)
 
 
@@ -116,7 +119,7 @@ def build_listing_payload(title: str, description: str, price: float, condition:
     return {
         "sku": sku,
         "product": {
-            "title": title[:80],
+            "title": clean_title(title, max_length=80),
             "description": description,
         },
         "availability": {

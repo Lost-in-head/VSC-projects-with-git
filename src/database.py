@@ -98,7 +98,7 @@ def get_all_listings():
                 SELECT id, title, filename, category, condition, brand, model,
                        suggested_price, status, created_at, updated_at
                 FROM listings
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, id DESC
                 '''
             )
 
@@ -241,10 +241,13 @@ def get_stats():
             cursor.execute("SELECT COUNT(*) FROM listings WHERE status = 'published'")
             published = cursor.fetchone()[0]
 
-        return {"total": total, "drafts": drafts, "published": published}
+            cursor.execute("SELECT COUNT(*) FROM listings WHERE status = 'archived'")
+            archived = cursor.fetchone()[0]
+
+        return {"total": total, "drafts": drafts, "published": published, "archived": archived}
     except Exception as e:
         print(f"Error getting stats: {e}")
-        return {"total": 0, "drafts": 0, "published": 0}
+        return {"total": 0, "drafts": 0, "published": 0, "archived": 0}
 
 
 def record_publish_result(listing_id, published, external_listing_id=None, error_message=None):

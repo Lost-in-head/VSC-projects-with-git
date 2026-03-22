@@ -122,3 +122,95 @@ def test_process_listing_low_value_flag(monkeypatch):
     result = process_listing('cheap.jpg', 'cheap.jpg')
     assert result['success'] is True
     assert result['is_high_value'] is False
+
+
+def test_process_listing_player_name_in_card_title(monkeypatch):
+    """When model does not contain the player name it must be prepended to the title."""
+    monkeypatch.setattr('src.app.describe_image', lambda _p: {
+        'brand': 'Topps',
+        'model': 'Rookie Card',
+        'category': 'Sports Trading Cards',
+        'condition': 'Near Mint',
+        'features': [],
+        'player_name': 'Mike Trout',
+    })
+    monkeypatch.setattr('src.app.search_ebay', lambda _q, limit=8: [{'title': 'x', 'price': 30.0, 'url': 'u'}])
+    monkeypatch.setattr('src.app.suggest_price', lambda _l: 30.0)
+
+    captured = {}
+
+    def fake_build(title, description, price, condition='USED_GOOD'):
+        captured['title'] = title
+        return {'product': {'title': title}, 'price': {'value': str(price)}}
+
+    monkeypatch.setattr('src.app.build_listing_payload', fake_build)
+    monkeypatch.setattr('src.app.save_listing', lambda **kwargs: 1)
+
+    result = process_listing('card.jpg', 'card.jpg')
+    assert result['success'] is True
+    assert 'Mike Trout' in captured['title']
+
+
+def test_process_listing_player_name_not_duplicated_when_already_in_model(monkeypatch):
+    """When model already contains the player name it should not be duplicated."""
+    monkeypatch.setattr('src.app.describe_image', lambda _p: {
+        'brand': 'Topps',
+        'model': 'Mike Trout Rookie Card',
+        'category': 'Sports Trading Cards',
+        'condition': 'Near Mint',
+        'features': [],
+        'player_name': 'Mike Trout',
+    })
+    monkeypatch.setattr('src.app.search_ebay', lambda _q, limit=8: [{'title': 'x', 'price': 30.0, 'url': 'u'}])
+    monkeypatch.setattr('src.app.suggest_price', lambda _l: 30.0)
+
+    captured = {}
+
+    def fake_build(title, description, price, condition='USED_GOOD'):
+        captured['title'] = title
+        return {'product': {'title': title}, 'price': {'value': str(price)}}
+
+    monkeypatch.setattr('src.app.build_listing_payload', fake_build)
+    monkeypatch.setattr('src.app.save_listing', lambda **kwargs: 1)
+
+    process_listing('card.jpg', 'card.jpg')
+    # "Mike Trout" should appear exactly once
+    assert captured['title'].count('Mike Trout') == 1
+
+
+def test_process_listing_price_fallback_when_suggest_returns_none(monkeypatch):
+    """When suggest_price returns None the pipeline should use the $5 default."""
+    monkeypatch.setattr('src.app.describe_image', lambda _p: {
+        'brand': 'Unknown',
+        'model': 'Item',
+        'category': 'Other',
+        'condition': 'Good',
+        'features': [],
+    })
+    monkeypatch.setattr('src.app.search_ebay', lambda _q, limit=8: [])
+    monkeypatch.setattr('src.app.suggest_price', lambda _l: None)
+    monkeypatch.setattr('src.app.build_listing_payload', lambda title, description, price, condition='USED_GOOD': {'product': {'title': title}, 'price': {'value': str(price)}})
+    monkeypatch.setattr('src.app.save_listing', lambda **kwargs: 1)
+
+    result = process_listing('item.jpg', 'item.jpg')
+    assert result['success'] is True
+    assert result['suggested_price'] == 5.00
+    assert result['price_warning'] is True
+
+
+def test_process_listing_save_failure_returns_error(monkeypatch):
+    """When save_listing returns None process_listing should return failure."""
+    monkeypatch.setattr('src.app.describe_image', lambda _p: {
+        'brand': 'Topps',
+        'model': 'Card',
+        'category': 'Sports Trading Cards',
+        'condition': 'Good',
+        'features': [],
+    })
+    monkeypatch.setattr('src.app.search_ebay', lambda _q, limit=8: [{'title': 'x', 'price': 10.0, 'url': 'u'}])
+    monkeypatch.setattr('src.app.suggest_price', lambda _l: 10.0)
+    monkeypatch.setattr('src.app.build_listing_payload', lambda title, description, price, condition='USED_GOOD': {'product': {'title': title}})
+    monkeypatch.setattr('src.app.save_listing', lambda **kwargs: None)
+
+    result = process_listing('card.jpg', 'card.jpg')
+    assert result['success'] is False
