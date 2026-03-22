@@ -5,6 +5,7 @@ Falls back to mock data if credentials not available
 """
 import base64
 import json
+import uuid
 import requests
 from statistics import median
 from src.config import (
@@ -109,9 +110,11 @@ def suggest_price(listings: list) -> float:
 def build_listing_payload(title: str, description: str, price: float, condition: str = "USED_GOOD") -> dict:
     """
     Build eBay Sell Inventory API payload (simplified).
+    Each call generates a unique SKU so multiple listings never collide.
     """
+    sku = f"LISTING-{uuid.uuid4().hex[:12].upper()}"
     return {
-        "sku": "AUTO_GENERATED_SKU",
+        "sku": sku,
         "product": {
             "title": title[:80],
             "description": description,
