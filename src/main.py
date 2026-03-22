@@ -72,7 +72,7 @@ def main():
     # Step 3: Suggest price
     print("\n💰 Step 3: Calculating suggested price...")
     price = suggest_price(listings)
-    if price > 0:
+    if price is not None and price > 0:
         print(f"✓ Suggested price: ${price:.2f}")
     else:
         price = 50.00  # Default fallback

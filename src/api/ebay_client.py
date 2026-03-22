@@ -102,7 +102,7 @@ def search_ebay(query: str, limit: int = 5) -> list:
 def suggest_price(listings: list) -> float:
     """Calculate suggested price from comparable listings (median)."""
     if not listings:
-        return 0.00
+        return None
     prices = [l["price"] for l in listings]
     return round(median(prices), 2)
 

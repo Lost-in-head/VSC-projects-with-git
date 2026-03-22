@@ -17,7 +17,7 @@ def test_search_ebay_mock_results_shape():
 def test_suggest_price_median_and_empty_case():
     listings = [{"price": 100}, {"price": 200}, {"price": 150}]
     assert suggest_price(listings) == 150.0
-    assert suggest_price([]) == 0.0
+    assert suggest_price([]) is None
 
 
 def test_build_listing_payload_shape():

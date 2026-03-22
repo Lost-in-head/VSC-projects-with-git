@@ -2,7 +2,9 @@ from src.main import main
 from src.app import process_listing
 
 
-def test_full_cli_pipeline(capsys):
+def test_full_cli_pipeline(monkeypatch, capsys):
+    monkeypatch.setenv("USE_OPENAI_MOCK", "True")
+    monkeypatch.setenv("USE_EBAY_MOCK", "True")
     payload = main()
     assert payload is not None
 

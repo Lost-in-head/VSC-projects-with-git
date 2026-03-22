@@ -1,3 +1,5 @@
+import io
+import json
 import pytest
 
 from src.app import create_app
@@ -47,7 +49,6 @@ def test_update_status_handles_empty_json_body(client):
 
 def test_upload_returns_500_on_processing_failure(client, monkeypatch):
     """upload_file should return HTTP 500 when the listing pipeline fails."""
-    import io
     monkeypatch.setattr('src.app.process_listing', lambda path, filename: {
         'success': False,
         'error': 'mock pipeline failure',
@@ -120,3 +121,61 @@ def test_publish_listing_failure_records_error(client, monkeypatch):
     listing = db.get_listing(listing_id)
     assert listing['status'] == 'draft'
     assert 'upstream unavailable' in listing['publish_error']
+
+
+def test_update_status_invalid_value_returns_400(client):
+    """PATCH with an unrecognised status value should return 400."""
+    response = client.patch('/api/listings/999/status', json={'status': 'banana'})
+    assert response.status_code == 400
+
+
+def test_upload_413_handler(client):
+    """Flask's MAX_CONTENT_LENGTH handler should return 413 with a JSON error."""
+    # Simulate the 413 handler directly via the app error handler
+    app = create_app()
+    app.config['TESTING'] = True
+    with app.test_client() as c:
+        with app.test_request_context():
+            from werkzeug.exceptions import RequestEntityTooLarge
+            response = app.make_response(app.handle_http_exception(RequestEntityTooLarge()))
+    assert response.status_code == 413
+    data = json.loads(response.get_data())
+    assert 'error' in data
+
+
+def test_get_listing_detail_returns_200_with_expected_fields(client):
+    """GET /api/listings/<id> for a real saved listing should return 200 and all fields."""
+    listing_id = db.save_listing(
+        title='Test Card',
+        filename='test.jpg',
+        analysis={
+            'category': 'Sports Trading Cards',
+            'condition': 'Near Mint',
+            'brand': 'Topps',
+            'model': 'Rookie Card',
+            'features': ['Serial numbered'],
+        },
+        comparable_listings=[{'title': 'Comp', 'price': 25.0, 'url': 'http://example.com'}],
+        suggested_price=25.0,
+        payload={'sku': 'TEST-SKU', 'product': {'title': 'Test Card'}},
+    )
+
+    response = client.get(f'/api/listings/{listing_id}')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['id'] == listing_id
+    assert data['title'] == 'Test Card'
+    assert data['brand'] == 'Topps'
+    assert data['model'] == 'Rookie Card'
+    assert data['condition'] == 'Near Mint'
+    assert isinstance(data['features'], list)
+    assert isinstance(data['comparable_listings'], list)
+    assert 'payload' in data
+    assert 'suggested_price' in data
+    assert 'status' in data
+
+
+def test_get_listing_detail_missing_returns_404(client):
+    """GET /api/listings/<id> for a nonexistent listing should return 404."""
+    response = client.get('/api/listings/99999')
+    assert response.status_code == 404

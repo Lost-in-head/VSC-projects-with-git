@@ -2,6 +2,7 @@
 OpenAI API client
 Handles image analysis with GPT-4o Vision
 """
+import json
 import base64
 import requests
 from src.config import OPENAI_API_KEY, OPENAI_MODEL, USE_OPENAI_MOCK
@@ -102,7 +103,7 @@ def describe_image(image_path: str) -> dict:
                 ],
             }
         ],
-        "max_tokens": 300,
+        "max_tokens": 1500,
     }
     
     try:
@@ -116,7 +117,6 @@ def describe_image(image_path: str) -> dict:
     content = response.json()["choices"][0]["message"]["content"]
     
     # Try to parse as JSON
-    import json
     try:
         # Find JSON in response (in case of extra text)
         start = content.find("{")
@@ -124,7 +124,7 @@ def describe_image(image_path: str) -> dict:
         if start >= 0 and end > start:
             json_str = content[start:end]
             return json.loads(json_str)
-    except:
+    except Exception:
         pass
     
     # Fallback if JSON parsing fails

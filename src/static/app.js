@@ -211,7 +211,58 @@ function updateStats(total, drafts, published) {
 }
 
 function viewListing(listingId) {
-      alert(`View listing ${listingId} - Full details view coming soon!`);
+      fetch(`/api/listings/${listingId}`)
+            .then(r => r.json())
+            .then(listing => {
+                  const overlay = document.createElement('div');
+                  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+                  const modal = document.createElement('div');
+                  modal.style.cssText = 'background:#fff;border-radius:12px;padding:28px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3);';
+
+                  const comparables = Array.isArray(listing.comparable_listings) && listing.comparable_listings.length
+                        ? listing.comparable_listings.map(c => {
+                              const price = c.price != null ? parseFloat(c.price).toFixed(2) : '?';
+                              return `<li>$${price} — ${escapeHtml(c.title || '')}</li>`;
+                        }).join('')
+                        : '<li>None</li>';
+
+                  const features = Array.isArray(listing.features) && listing.features.length
+                        ? listing.features.map(f => `<li>${escapeHtml(f)}</li>`).join('')
+                        : '<li>—</li>';
+
+                  const priceDisplay = listing.suggested_price !== null && listing.suggested_price !== undefined
+                        ? `$${listing.suggested_price.toFixed(2)}`
+                        : '—';
+
+                  modal.innerHTML = `
+                        <button onclick="this.closest('.listing-modal-overlay').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.5em;cursor:pointer;color:#666;">×</button>
+                        <h2 style="margin:0 0 16px;color:#333;font-size:1.2em;">${escapeHtml(listing.title)}</h2>
+                        <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                              <tr><td style="padding:6px 0;color:#999;width:140px;">Brand / Model</td><td>${escapeHtml(listing.brand || '—')} ${listing.model ? '/ ' + escapeHtml(listing.model) : ''}</td></tr>
+                              <tr><td style="padding:6px 0;color:#999;">Category</td><td>${escapeHtml(listing.category || '—')}</td></tr>
+                              <tr><td style="padding:6px 0;color:#999;">Condition</td><td>${escapeHtml(listing.condition || '—')}</td></tr>
+                              <tr><td style="padding:6px 0;color:#999;">Suggested Price</td><td><strong>${priceDisplay}</strong></td></tr>
+                              <tr><td style="padding:6px 0;color:#999;">Status</td><td>${escapeHtml(listing.status)}</td></tr>
+                              ${listing.external_listing_id ? `<tr><td style="padding:6px 0;color:#999;">External ID</td><td>${escapeHtml(listing.external_listing_id)}</td></tr>` : ''}
+                              ${listing.publish_error ? `<tr><td style="padding:6px 0;color:#999;">Publish Error</td><td style="color:#c62828;">${escapeHtml(listing.publish_error)}</td></tr>` : ''}
+                        </table>
+                        <p style="margin:14px 0 4px;color:#999;font-size:0.85em;">Features</p>
+                        <ul style="margin:0;padding-left:18px;font-size:0.85em;">${features}</ul>
+                        <p style="margin:14px 0 4px;color:#999;font-size:0.85em;">Comparable Listings</p>
+                        <ul style="margin:0;padding-left:18px;font-size:0.85em;">${comparables}</ul>
+                        <details style="margin-top:14px;">
+                              <summary style="cursor:pointer;font-size:0.85em;color:#667eea;">eBay Payload JSON</summary>
+                              <pre style="background:#2d2d2d;color:#f8f8f2;padding:12px;border-radius:8px;overflow-x:auto;font-size:0.78em;margin-top:8px;">${escapeHtml(JSON.stringify(listing.payload, null, 2))}</pre>
+                        </details>
+                  `;
+
+                  overlay.className = 'listing-modal-overlay';
+                  overlay.appendChild(modal);
+                  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+                  document.body.appendChild(overlay);
+            })
+            .catch(() => alert(`Could not load listing ${listingId}.`));
 }
 
 async function togglePublished(listingId, currentStatus) {
@@ -248,7 +299,6 @@ async function deleteListing(listingId) {
 }
 
 // Event Listeners
-uploadBox.addEventListener('click', () => photoInput.click());
 uploadBox.addEventListener('dragover', handleDragOver);
 uploadBox.addEventListener('dragleave', handleDragLeave);
 uploadBox.addEventListener('drop', handleDrop);
@@ -324,6 +374,15 @@ function handleFileInputs(fileList) {
       }
 }
 
+// Delegated click handler for the preview grid remove buttons (defined once)
+previewGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.remove-btn');
+      if (btn) {
+            const idx = parseInt(btn.dataset.index, 10);
+            removeFile(idx);
+      }
+});
+
 function showPreview() {
       previewGrid.innerHTML = '';
       photoCount.textContent = selectedFiles.length;
@@ -337,10 +396,6 @@ function showPreview() {
                         <img src="${e.target.result}" alt="Preview ${index + 1}">
                         <button class="remove-btn" data-index="${index}">×</button>
                   `;
-
-                  const removeBtn = previewItem.querySelector('.remove-btn');
-                  removeBtn.addEventListener('click', () => removeFile(index));
-
                   previewGrid.appendChild(previewItem);
             };
             reader.readAsDataURL(file);

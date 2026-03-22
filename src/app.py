@@ -4,9 +4,7 @@ Provides a user-friendly interface to upload photos and generate listings
 """
 
 import os
-import json
 import uuid
-from pathlib import Path
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
@@ -122,12 +120,12 @@ def create_app():
             file = request.files['photo']
             if file.filename == '':
                 return jsonify({'error': 'No file selected'}), 400
-            
-            if not allowed_file(file.filename):
-                return jsonify({'error': 'Invalid file type. Use JPG, PNG, or GIF'}), 400
-            
-            # Save uploaded file with a unique prefix to avoid collisions
+
             filename = secure_filename(file.filename)
+            if not filename or not allowed_file(filename):
+                return jsonify({'error': 'Invalid file type. Use JPG, PNG, or GIF'}), 400
+
+            # Save uploaded file with a unique prefix to avoid collisions
             unique_prefix = uuid.uuid4().hex[:12]
             filename = f"{unique_prefix}_{filename}"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -191,6 +189,12 @@ def generate_listing_from_analysis(analysis, filename):
     listings = search_ebay(search_query, limit=8)
     suggested_price = suggest_price(listings)
 
+    if suggested_price is None:
+        suggested_price = 5.00
+        price_warning = True
+    else:
+        price_warning = False
+
     title = f"{analysis.get('brand', 'Item')} {analysis.get('model', '')}".strip()
     payload = build_listing_payload(
         title=title,
@@ -208,11 +212,15 @@ def generate_listing_from_analysis(analysis, filename):
         payload=payload
     )
 
+    if listing_id is None:
+        raise RuntimeError("Failed to save listing to database")
+
     return {
         'listing_id': listing_id,
         'analysis': analysis,
         'comparable_listings': listings,
         'suggested_price': suggested_price,
+        'price_warning': price_warning,
         'is_high_value': suggested_price >= HIGH_VALUE_THRESHOLD,
         'payload': payload,
     }
@@ -232,6 +240,13 @@ def process_listing(image_path, filename='unknown.jpg'):
         image_analysis = describe_image(image_path)
         analyses = normalize_analysis_cards(image_analysis)
 
+        if not analyses:
+            return {
+                'success': False,
+                'error': 'No items detected in image',
+                'message': '❌ Could not identify any items in the photo'
+            }
+
         print(f"🛒 Searching eBay for similar items...")
         results = [generate_listing_from_analysis(analysis, filename) for analysis in analyses]
 
@@ -243,6 +258,7 @@ def process_listing(image_path, filename='unknown.jpg'):
                 'analysis': result['analysis'],
                 'comparable_listings': result['comparable_listings'],
                 'suggested_price': result['suggested_price'],
+                'price_warning': result['price_warning'],
                 'payload': result['payload'],
                 'is_high_value': result['is_high_value'],
                 'high_value_threshold': HIGH_VALUE_THRESHOLD,
