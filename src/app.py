@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask_cors import CORS
 from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
 from src.api.openai_client import describe_image
 from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload, publish_listing
@@ -21,6 +22,9 @@ def create_app():
     """Create and configure Flask application"""
     app = Flask(__name__, template_folder='templates', static_folder='static')
     
+    # Enable CORS for mobile app clients
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
     # Configuration
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -32,6 +36,11 @@ def create_app():
     # Ensure upload folder exists
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
+    @app.route('/api/health', methods=['GET'])
+    def health_check():
+        """Health check endpoint for mobile clients"""
+        return jsonify({'status': 'ok', 'version': '1.0.0'}), 200
+
     @app.route('/')
     def index():
         """Home page - upload form"""
