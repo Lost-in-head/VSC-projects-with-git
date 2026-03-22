@@ -179,3 +179,127 @@ def test_get_listing_detail_missing_returns_404(client):
     """GET /api/listings/<id> for a nonexistent listing should return 404."""
     response = client.get('/api/listings/99999')
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Additional edge-case / new-feature tests
+# ---------------------------------------------------------------------------
+
+def test_upload_with_no_photo_field_returns_400(client):
+    """POST /api/upload with no file field should return 400."""
+    response = client.post('/api/upload', data={}, content_type='multipart/form-data')
+    assert response.status_code == 400
+    assert 'error' in response.get_json()
+
+
+def test_upload_with_empty_filename_returns_400(client):
+    """POST /api/upload with an empty filename should return 400."""
+    import io
+    data = {'photo': (io.BytesIO(b'data'), '')}
+    response = client.post('/api/upload', data=data, content_type='multipart/form-data')
+    assert response.status_code == 400
+
+
+def test_upload_disallowed_extension_returns_400(client):
+    """POST /api/upload with a .exe file should return 400."""
+    import io
+    data = {'photo': (io.BytesIO(b'MZ'), 'malware.exe')}
+    response = client.post('/api/upload', data=data, content_type='multipart/form-data')
+    assert response.status_code == 400
+    assert 'error' in response.get_json()
+
+
+def test_update_status_to_archived(client):
+    """PATCH to 'archived' should succeed for an existing listing."""
+    lid = db.save_listing(
+        title='Archivable',
+        filename='x.jpg',
+        analysis={'brand': 'Topps', 'condition': 'Good', 'features': []},
+        comparable_listings=[],
+        suggested_price=5.0,
+        payload={'sku': 'X'},
+    )
+    response = client.patch(f'/api/listings/{lid}/status', json={'status': 'archived'})
+    assert response.status_code == 200
+    listing = db.get_listing(lid)
+    assert listing['status'] == 'archived'
+
+
+def test_stats_endpoint_includes_archived_field(client):
+    """The index route stats must include the 'archived' count."""
+    lid = db.save_listing(
+        title='Arch',
+        filename='a.jpg',
+        analysis={'brand': 'A', 'condition': 'Good', 'features': []},
+        comparable_listings=[],
+        suggested_price=1.0,
+        payload={'sku': 'A'},
+    )
+    db.update_listing_status(lid, 'archived')
+
+    # get_stats is called by the index route; also test it directly
+    stats = db.get_stats()
+    assert 'archived' in stats
+    assert stats['archived'] >= 1
+
+
+def test_publish_already_published_listing_returns_409(client):
+    """Attempting to publish an already-published listing should return 409."""
+    lid = db.save_listing(
+        title='Already Published',
+        filename='p.jpg',
+        analysis={'brand': 'B', 'condition': 'Good', 'features': []},
+        comparable_listings=[],
+        suggested_price=10.0,
+        payload={'sku': 'P'},
+    )
+    db.record_publish_result(lid, published=True, external_listing_id='EXT-P')
+
+    response = client.post(f'/api/listings/{lid}/publish')
+    assert response.status_code == 409
+
+
+def test_delete_existing_listing(client):
+    """DELETE on an existing listing should return 200."""
+    lid = db.save_listing(
+        title='To Delete',
+        filename='d.jpg',
+        analysis={'brand': 'D', 'condition': 'Good', 'features': []},
+        comparable_listings=[],
+        suggested_price=3.0,
+        payload={'sku': 'D'},
+    )
+    response = client.delete(f'/api/listings/{lid}')
+    assert response.status_code == 200
+    assert db.get_listing(lid) is None
+
+
+def test_download_file_not_found(client):
+    """GET /downloads/<missing> should return 404."""
+    response = client.get('/downloads/nonexistent_file_xyz.jpg')
+    assert response.status_code == 404
+
+
+def test_get_listings_returns_list_sorted_newest_first(client):
+    """Listings should be ordered newest first."""
+    db.save_listing(
+        title='First',
+        filename='f1.jpg',
+        analysis={'brand': 'A', 'features': []},
+        comparable_listings=[],
+        suggested_price=1.0,
+        payload={'sku': 'S1'},
+    )
+    db.save_listing(
+        title='Second',
+        filename='f2.jpg',
+        analysis={'brand': 'B', 'features': []},
+        comparable_listings=[],
+        suggested_price=2.0,
+        payload={'sku': 'S2'},
+    )
+    response = client.get('/api/listings')
+    data = response.get_json()
+    assert response.status_code == 200
+    titles = [l['title'] for l in data]
+    assert titles[0] == 'Second'  # newest first

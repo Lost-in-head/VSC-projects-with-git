@@ -89,6 +89,35 @@ class TestFormatDescription:
         result = format_description(analysis)
         assert "Some note as plain string" in result
 
+    def test_card_fields_included_in_description(self):
+        """Trading-card specific fields must appear in the description."""
+        analysis = {
+            "category": "Sports Trading Cards",
+            "condition": "Near Mint",
+            "brand": "Topps",
+            "model": "Rookie Card",
+            "player_name": "Shohei Ohtani",
+            "set_name": "Topps Update",
+            "year": "2018",
+            "card_number": "US1",
+            "grade": "Ungraded",
+            "features": ["Rookie Card"],
+        }
+        result = format_description(analysis)
+        assert "Shohei Ohtani" in result
+        assert "Topps Update" in result
+        assert "2018" in result
+        assert "US1" in result
+        assert "Ungraded" in result
+
+    def test_missing_card_fields_not_rendered(self):
+        """When optional card fields are absent no label should appear."""
+        analysis = {"category": "Sports Trading Cards", "brand": "Panini"}
+        result = format_description(analysis)
+        assert "Player" not in result
+        assert "Set" not in result
+        assert "Year" not in result
+
 
 # ---------------------------------------------------------------------------
 # build_search_query
