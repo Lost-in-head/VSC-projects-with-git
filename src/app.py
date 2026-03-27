@@ -3,6 +3,7 @@ Flask web application for eBay Listing Generator
 Provides a user-friendly interface to upload photos and generate listings
 """
 
+import importlib
 import logging
 import os
 import uuid
@@ -13,6 +14,7 @@ from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
 from src.api.openai_client import describe_image
 from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload, publish_listing
 from src.database import init_db, save_listing, get_all_listings, get_listing, update_listing_status, delete_listing, get_stats, record_publish_result
+import src.settings_store as settings_store
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +166,120 @@ def create_app():
     def health():
         """Health check endpoint for desktop/mobile connectivity checks"""
         return jsonify({'status': 'ok', 'version': '1.0.0'}), 200
+
+    # ── Settings routes ───────────────────────────────────────────────────────
+
+    @app.route('/settings')
+    def settings_page():
+        """Settings UI — enter API keys and toggle mock/sandbox mode"""
+        return render_template('settings.html')
+
+    @app.route('/api/settings', methods=['GET'])
+    def get_settings():
+        """Return current settings state (secrets are masked)."""
+        import src.config as cfg
+        stored = settings_store.load_all()
+
+        def _mask(key):
+            val = stored.get(key, '')
+            if not val:
+                return ''
+            # Show first 4 chars then asterisks, e.g. sk-p***
+            visible = val[:4]
+            return visible + '*' * max(4, len(val) - 4)
+
+        return jsonify({
+            'openai_api_key_set': bool(stored.get('OPENAI_API_KEY')),
+            'openai_api_key_preview': _mask('OPENAI_API_KEY'),
+            'ebay_client_id_set': bool(stored.get('EBAY_CLIENT_ID')),
+            'ebay_client_id_preview': _mask('EBAY_CLIENT_ID'),
+            'ebay_client_secret_set': bool(stored.get('EBAY_CLIENT_SECRET')),
+            'use_openai_mock': os.environ.get('USE_OPENAI_MOCK', str(cfg.USE_OPENAI_MOCK)).lower() == 'true',
+            'use_ebay_mock': os.environ.get('USE_EBAY_MOCK', str(cfg.USE_EBAY_MOCK)).lower() == 'true',
+            'ebay_sandbox': os.environ.get('EBAY_SANDBOX', str(cfg.EBAY_SANDBOX)).lower() == 'true',
+        }), 200
+
+    @app.route('/api/settings', methods=['POST'])
+    def save_settings():
+        """
+        Save API credentials and toggle flags.
+        Reloads config and API client modules so changes take effect immediately
+        without restarting the server.
+        """
+        data = request.get_json(silent=True) or {}
+
+        # Build a settings dict from the submitted values
+        to_save = {}
+        for key in ('OPENAI_API_KEY', 'EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET'):
+            if key in data:
+                to_save[key] = data[key]
+
+        for key in ('USE_OPENAI_MOCK', 'USE_EBAY_MOCK', 'EBAY_SANDBOX'):
+            if key in data:
+                to_save[key] = 'True' if data[key] else 'False'
+
+        settings_store.save_all(to_save)
+
+        # Apply to os.environ so that reloaded modules pick up the new values
+        for key, value in to_save.items():
+            if value:
+                os.environ[key] = value
+            else:
+                os.environ.pop(key, None)
+
+        # Reload config and API client modules to apply changes live
+        import src.config as config_mod
+        import src.api.openai_client as openai_mod
+        import src.api.ebay_client as ebay_mod
+        importlib.reload(config_mod)
+        importlib.reload(openai_mod)
+        importlib.reload(ebay_mod)
+        logger.info("Settings saved and modules reloaded")
+
+        return jsonify({'success': True}), 200
+
+    @app.route('/api/settings/test-openai', methods=['POST'])
+    def test_openai():
+        """Quick connectivity test against the OpenAI API."""
+        import src.config as cfg
+        if cfg.USE_OPENAI_MOCK or not cfg.OPENAI_API_KEY:
+            return jsonify({
+                'success': True,
+                'mode': 'mock',
+                'message': 'Mock mode active — no API call made',
+            }), 200
+        try:
+            import requests as req
+            resp = req.get(
+                'https://api.openai.com/v1/models',
+                headers={'Authorization': f'Bearer {cfg.OPENAI_API_KEY}'},
+                timeout=8,
+            )
+            if resp.status_code == 200:
+                return jsonify({'success': True, 'mode': 'live', 'message': 'OpenAI connection successful ✅'}), 200
+            return jsonify({'success': False, 'message': f'OpenAI returned HTTP {resp.status_code}'}), 200
+        except Exception as exc:
+            return jsonify({'success': False, 'message': f'Connection error: {exc}'}), 200
+
+    @app.route('/api/settings/test-ebay', methods=['POST'])
+    def test_ebay():
+        """Quick connectivity test against the eBay API."""
+        import src.config as cfg
+        if cfg.USE_EBAY_MOCK or not cfg.EBAY_CLIENT_ID or not cfg.EBAY_CLIENT_SECRET:
+            return jsonify({
+                'success': True,
+                'mode': 'mock',
+                'message': 'Mock mode active — no API call made',
+            }), 200
+        try:
+            from src.api.ebay_client import get_ebay_token
+            get_ebay_token()
+            mode = 'sandbox' if cfg.EBAY_SANDBOX else 'production'
+            return jsonify({'success': True, 'mode': mode, 'message': f'eBay connection successful ✅ ({mode})'}), 200
+        except Exception as exc:
+            return jsonify({'success': False, 'message': f'eBay auth failed: {exc}'}), 200
+
+    # ── Error handlers ────────────────────────────────────────────────────────
 
     @app.errorhandler(413)
     def request_entity_too_large(error):

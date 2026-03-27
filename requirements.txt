@@ -4,6 +4,7 @@ openai>=1.0.0
 flask>=3.0.0
 flask-cors>=4.0.0
 platformdirs>=4.0.0
+keyring>=25.0.0
 pywebview>=5.0
 pytest>=8.0.0
 pytest-mock>=3.14.0

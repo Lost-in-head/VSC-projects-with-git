@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="theme-color" content="#667eea">
+      <title>Settings — eBay Listing Generator</title>
+      <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+      <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+</head>
+
+<body>
+      <div class="container">
+            <header>
+                  <h1>📷 eBay Listing Generator</h1>
+                  <p>Upload a photo → Get an instant listing with suggested price</p>
+                  <div class="nav-tabs">
+                        <a href="/" class="tab-btn">📤 Generate Listings</a>
+                        <a href="/" class="tab-btn">📊 Saved Listings</a>
+                        <span class="tab-btn active">⚙️ Settings</span>
+                  </div>
+            </header>
+
+            <main>
+                  <div id="settingsAlert" class="settings-alert hidden"></div>
+
+                  <!-- OpenAI Section -->
+                  <section class="settings-section">
+                        <h2 class="settings-section-title">🤖 OpenAI</h2>
+                        <p class="settings-section-desc">Used for AI image analysis. Required for real listing generation.</p>
+
+                        <div class="settings-field">
+                              <label for="openaiApiKey">API Key</label>
+                              <div class="input-row">
+                                    <input type="password" id="openaiApiKey" class="settings-input"
+                                          placeholder="sk-…  (leave blank to keep current)" autocomplete="off">
+                                    <button id="toggleOpenaiKey" class="btn-icon" type="button"
+                                          aria-label="Show or hide API key">👁</button>
+                              </div>
+                              <span id="openaiKeyStatus" class="key-status"></span>
+                        </div>
+
+                        <div class="settings-field settings-toggle-row">
+                              <label for="useOpenaiMock">
+                                    <input type="checkbox" id="useOpenaiMock">
+                                    Use mock mode (no API calls — safe for testing)
+                              </label>
+                        </div>
+
+                        <div class="settings-actions">
+                              <button id="testOpenaiBtn" class="btn-secondary" type="button">🔌 Test Connection</button>
+                              <span id="openaiTestResult" class="test-result"></span>
+                        </div>
+                  </section>
+
+                  <!-- eBay Section -->
+                  <section class="settings-section">
+                        <h2 class="settings-section-title">🛒 eBay</h2>
+                        <p class="settings-section-desc">Used for comparable listing search and publishing. Required for real eBay integration.</p>
+
+                        <div class="settings-field">
+                              <label for="ebayClientId">Client ID (App ID)</label>
+                              <div class="input-row">
+                                    <input type="password" id="ebayClientId" class="settings-input"
+                                          placeholder="leave blank to keep current" autocomplete="off">
+                                    <button id="toggleEbayClientId" class="btn-icon" type="button"
+                                          aria-label="Show or hide client ID">👁</button>
+                              </div>
+                              <span id="ebayClientIdStatus" class="key-status"></span>
+                        </div>
+
+                        <div class="settings-field">
+                              <label for="ebayClientSecret">Client Secret (Cert ID)</label>
+                              <div class="input-row">
+                                    <input type="password" id="ebayClientSecret" class="settings-input"
+                                          placeholder="leave blank to keep current" autocomplete="off">
+                                    <button id="toggleEbaySecret" class="btn-icon" type="button"
+                                          aria-label="Show or hide client secret">👁</button>
+                              </div>
+                        </div>
+
+                        <div class="settings-field settings-toggle-row">
+                              <label for="useEbayMock">
+                                    <input type="checkbox" id="useEbayMock">
+                                    Use mock mode (no API calls — safe for testing)
+                              </label>
+                        </div>
+
+                        <div class="settings-field settings-toggle-row">
+                              <label for="ebaySandbox">
+                                    <input type="checkbox" id="ebaySandbox">
+                                    Use eBay Sandbox (test environment)
+                              </label>
+                        </div>
+
+                        <div class="settings-actions">
+                              <button id="testEbayBtn" class="btn-secondary" type="button">🔌 Test Connection</button>
+                              <span id="ebayTestResult" class="test-result"></span>
+                        </div>
+                  </section>
+
+                  <!-- Save -->
+                  <div class="settings-save-row">
+                        <button id="saveSettingsBtn" class="btn-primary" type="button">💾 Save Settings</button>
+                        <a href="/" class="btn-secondary settings-cancel-btn">Cancel</a>
+                  </div>
+            </main>
+
+            <footer>
+                  <p>💡 Tip: Works with real OpenAI/eBay APIs when credentials are configured above</p>
+            </footer>
+      </div>
+
+      <script>
+            const API_BASE_URL = window.__API_BASE_URL__ || '';
+
+            // ── Load current settings on page load ────────────────────────────
+            async function loadSettings() {
+                  try {
+                        const res = await fetch(`${API_BASE_URL}/api/settings`);
+                        const s = await res.json();
+
+                        document.getElementById('useOpenaiMock').checked = s.use_openai_mock;
+                        document.getElementById('useEbayMock').checked = s.use_ebay_mock;
+                        document.getElementById('ebaySandbox').checked = s.ebay_sandbox;
+
+                        document.getElementById('openaiKeyStatus').textContent =
+                              s.openai_api_key_set ? `✅ Key stored (${s.openai_api_key_preview})` : '⚠️ Not set';
+                        document.getElementById('openaiKeyStatus').className =
+                              'key-status ' + (s.openai_api_key_set ? 'key-set' : 'key-missing');
+
+                        document.getElementById('ebayClientIdStatus').textContent =
+                              s.ebay_client_id_set ? `✅ Client ID stored (${s.ebay_client_id_preview})` : '⚠️ Not set';
+                        document.getElementById('ebayClientIdStatus').className =
+                              'key-status ' + (s.ebay_client_id_set ? 'key-set' : 'key-missing');
+                  } catch (e) {
+                        showAlert('Could not load current settings: ' + e.message, 'error');
+                  }
+            }
+
+            // ── Save ─────────────────────────────────────────────────────────
+            document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+                  const btn = document.getElementById('saveSettingsBtn');
+                  btn.disabled = true;
+                  btn.textContent = 'Saving…';
+
+                  const payload = {
+                        USE_OPENAI_MOCK: document.getElementById('useOpenaiMock').checked,
+                        USE_EBAY_MOCK: document.getElementById('useEbayMock').checked,
+                        EBAY_SANDBOX: document.getElementById('ebaySandbox').checked,
+                  };
+
+                  const openaiKey = document.getElementById('openaiApiKey').value.trim();
+                  const ebayId = document.getElementById('ebayClientId').value.trim();
+                  const ebaySecret = document.getElementById('ebayClientSecret').value.trim();
+                  if (openaiKey) payload.OPENAI_API_KEY = openaiKey;
+                  if (ebayId) payload.EBAY_CLIENT_ID = ebayId;
+                  if (ebaySecret) payload.EBAY_CLIENT_SECRET = ebaySecret;
+
+                  try {
+                        const res = await fetch(`${API_BASE_URL}/api/settings`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(payload),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                              document.getElementById('openaiApiKey').value = '';
+                              document.getElementById('ebayClientId').value = '';
+                              document.getElementById('ebayClientSecret').value = '';
+                              showAlert('✅ Settings saved successfully! Changes are now active.', 'success');
+                              await loadSettings();
+                        } else {
+                              showAlert('❌ Save failed: ' + (data.error || 'Unknown error'), 'error');
+                        }
+                  } catch (e) {
+                        showAlert('❌ Save failed: ' + e.message, 'error');
+                  } finally {
+                        btn.disabled = false;
+                        btn.textContent = '💾 Save Settings';
+                  }
+            });
+
+            // ── Test connections ─────────────────────────────────────────────
+            async function testConnection(endpoint, resultEl) {
+                  resultEl.textContent = 'Testing…';
+                  resultEl.className = 'test-result testing';
+                  try {
+                        const res = await fetch(`${API_BASE_URL}${endpoint}`, { method: 'POST' });
+                        const data = await res.json();
+                        resultEl.textContent = data.message || (data.success ? '✅ OK' : '❌ Failed');
+                        resultEl.className = 'test-result ' + (data.success ? 'test-ok' : 'test-fail');
+                  } catch (e) {
+                        resultEl.textContent = '❌ ' + e.message;
+                        resultEl.className = 'test-result test-fail';
+                  }
+            }
+
+            document.getElementById('testOpenaiBtn').addEventListener('click', () =>
+                  testConnection('/api/settings/test-openai', document.getElementById('openaiTestResult')));
+            document.getElementById('testEbayBtn').addEventListener('click', () =>
+                  testConnection('/api/settings/test-ebay', document.getElementById('ebayTestResult')));
+
+            // ── Show/hide password toggles ────────────────────────────────────
+            function wireToggle(btnId, inputId) {
+                  document.getElementById(btnId).addEventListener('click', () => {
+                        const input = document.getElementById(inputId);
+                        input.type = input.type === 'password' ? 'text' : 'password';
+                  });
+            }
+            wireToggle('toggleOpenaiKey', 'openaiApiKey');
+            wireToggle('toggleEbayClientId', 'ebayClientId');
+            wireToggle('toggleEbaySecret', 'ebayClientSecret');
+
+            // ── Alert banner ─────────────────────────────────────────────────
+            function showAlert(msg, type) {
+                  const el = document.getElementById('settingsAlert');
+                  el.textContent = msg;
+                  el.className = 'settings-alert ' + type;
+                  el.classList.remove('hidden');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  setTimeout(() => el.classList.add('hidden'), 6000);
+            }
+
+            // ── Init ──────────────────────────────────────────────────────────
+            loadSettings();
+      </script>
+</body>
+
+</html>

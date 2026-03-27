@@ -18,7 +18,13 @@ import threading
 
 import webview
 
-from src.app import create_app
+# Apply stored credentials/settings to os.environ BEFORE importing src.app
+# (and therefore before src.config is evaluated) so that saved API keys
+# override the .env file values on startup.
+from src.settings_store import apply_to_env
+apply_to_env()
+
+from src.app import create_app  # noqa: E402 — intentional late import
 
 logging.basicConfig(
     level=logging.INFO,
