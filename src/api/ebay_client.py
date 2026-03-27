@@ -5,6 +5,7 @@ Falls back to mock data if credentials not available
 """
 import base64
 import json
+import logging
 import uuid
 import requests
 from statistics import median
@@ -18,6 +19,8 @@ from src.config import (
     USE_EBAY_MOCK,
 )
 from src.api.mock_ebay import search_ebay_mock
+
+logger = logging.getLogger(__name__)
 
 
 def get_ebay_token() -> str:
@@ -55,7 +58,7 @@ def search_ebay(query: str, limit: int = 5) -> list:
     
     # Use mock if enabled or no credentials
     if USE_EBAY_MOCK or not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
-        print("📝 Using MOCK eBay search (not consuming API calls)")
+        logger.info("Using MOCK eBay search (not consuming API calls)")
         return search_ebay_mock(query, limit)
     
     try:
@@ -96,7 +99,7 @@ def search_ebay(query: str, limit: int = 5) -> list:
         
         return results
     except Exception as e:
-        print(f"⚠️  eBay API error: {e}. Falling back to mock data")
+        logger.warning("eBay API error: %s. Falling back to mock data", e)
         return search_ebay_mock(query, limit)
 
 

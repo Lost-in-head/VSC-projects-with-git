@@ -2,14 +2,14 @@ from src.main import main
 from src.app import process_listing
 
 
-def test_full_cli_pipeline(monkeypatch, capsys):
+def test_full_cli_pipeline(monkeypatch, caplog):
+    import logging
     monkeypatch.setenv("USE_OPENAI_MOCK", "True")
     monkeypatch.setenv("USE_EBAY_MOCK", "True")
-    payload = main()
+    with caplog.at_level(logging.INFO, logger="src.main"):
+        payload = main()
     assert payload is not None
-
-    captured = capsys.readouterr()
-    assert "Success! Your listing draft is ready" in captured.out
+    assert "Success! Your listing draft is ready" in caplog.text
 
 
 def test_process_listing_title_includes_brand_and_model(monkeypatch):

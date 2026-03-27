@@ -4,8 +4,10 @@
 <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="theme-color" content="#667eea">
       <title>eBay Listing Generator</title>
       <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+      <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
 </head>
 
 <body>
@@ -36,7 +38,7 @@
                                     </svg>
                                     <h2>Drop your photos here</h2>
                                     <p>or click to browse (multiple files OK)</p>
-                                    <input type="file" id="photoInput" accept="image/*" multiple hidden>
+                                    <input type="file" id="photoInput" accept="image/*" capture="environment" multiple hidden>
                               </label>
                               <p class="file-info">JPG, PNG, or GIF • Max 16MB each • Upload 1+ photos</p>
                         </section>

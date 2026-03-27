@@ -3,14 +3,18 @@ Flask web application for eBay Listing Generator
 Provides a user-friendly interface to upload photos and generate listings
 """
 
+import logging
 import os
 import uuid
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask_cors import CORS
 from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
 from src.api.openai_client import describe_image
 from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload, publish_listing
 from src.database import init_db, save_listing, get_all_listings, get_listing, update_listing_status, delete_listing, get_stats, record_publish_result
+
+logger = logging.getLogger(__name__)
 
 HIGH_VALUE_THRESHOLD = 20.0
 
@@ -18,15 +22,18 @@ HIGH_VALUE_THRESHOLD = 20.0
 def create_app():
     """Create and configure Flask application"""
     app = Flask(__name__, template_folder='templates', static_folder='static')
-    
+
+    # Enable CORS for all API routes (required for mobile/desktop WebView clients)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
     # Configuration
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
     app.config['JSON_SORT_KEYS'] = False
-    
+
     # Initialize database
     init_db()
-    
+
     # Ensure upload folder exists
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
@@ -153,6 +160,11 @@ def create_app():
         except FileNotFoundError:
             return jsonify({'error': 'File not found'}), 404
     
+    @app.route('/api/health')
+    def health():
+        """Health check endpoint for desktop/mobile connectivity checks"""
+        return jsonify({'status': 'ok', 'version': '1.0.0'}), 200
+
     @app.errorhandler(413)
     def request_entity_too_large(error):
         return jsonify({'error': 'File too large. Max 16MB'}), 413
@@ -258,7 +270,7 @@ def process_listing(image_path, filename='unknown.jpg'):
     Supports either one detected item/card or multiple cards in a single image.
     """
     try:
-        print(f"📷 Analyzing uploaded image...")
+        logger.info("Analyzing uploaded image...")
         image_analysis = describe_image(image_path)
         analyses = normalize_analysis_cards(image_analysis)
 
@@ -269,7 +281,7 @@ def process_listing(image_path, filename='unknown.jpg'):
                 'message': '❌ Could not identify any items in the photo'
             }
 
-        print(f"🛒 Searching eBay for similar items...")
+        logger.info("Searching eBay for similar items...")
         results = [generate_listing_from_analysis(analysis, filename) for analysis in analyses]
 
         if len(results) == 1:
@@ -297,7 +309,7 @@ def process_listing(image_path, filename='unknown.jpg'):
         }
 
     except Exception as e:
-        print(f"❌ Error processing listing: {e}")
+        logger.error("Error processing listing: %s", e)
         return {
             'success': False,
             'error': str(e),
@@ -353,5 +365,6 @@ def format_description(analysis):
 
 
 if __name__ == '__main__':
+    from src.config import DEBUG
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=DEBUG, host='127.0.0.1', port=5000)

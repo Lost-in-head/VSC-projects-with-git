@@ -34,5 +34,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 USE_OPENAI_MOCK = os.getenv("USE_OPENAI_MOCK", "False").lower() == "true"
 USE_EBAY_MOCK = os.getenv("USE_EBAY_MOCK", "True").lower() == "true"  # Default to mock until eBay API ready
 # Web UI Config
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "..", "uploads")
+from src.paths import get_upload_dir
+UPLOAD_FOLDER = get_upload_dir()
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif"}

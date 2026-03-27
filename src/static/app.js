@@ -3,6 +3,11 @@
  * Handles batch file uploads, drag-drop, and batch results display
  */
 
+// Configurable API base URL.  Set window.__API_BASE_URL__ before this script
+// loads to point at a remote server (e.g. for mobile/desktop builds).
+// Defaults to '' so all relative /api/* calls work when served by Flask.
+const API_BASE_URL = window.__API_BASE_URL__ || '';
+
 // HTML escaping utility to prevent XSS when injecting API data into the DOM
 function escapeHtml(str) {
       if (str === null || str === undefined) return '';
@@ -95,7 +100,7 @@ async function listForSale(index) {
       }
 
       try {
-            const response = await fetch(`/api/listings/${listingId}/publish`, { method: 'POST' });
+            const response = await fetch(`${API_BASE_URL}/api/listings/${listingId}/publish`, { method: 'POST' });
             const data = await response.json();
             if (!response.ok) {
                   throw new Error(data.error || 'Publish failed');
@@ -147,7 +152,7 @@ if (refreshBtn) {
 
 async function loadDashboard() {
       try {
-            const response = await fetch('/api/listings');
+            const response = await fetch(`${API_BASE_URL}/api/listings`);
             const listings = await response.json();
 
             if (!response.ok) {
@@ -211,7 +216,7 @@ function updateStats(total, drafts, published) {
 }
 
 function viewListing(listingId) {
-      fetch(`/api/listings/${listingId}`)
+      fetch(`${API_BASE_URL}/api/listings/${listingId}`)
             .then(r => r.json())
             .then(listing => {
                   const overlay = document.createElement('div');
@@ -268,7 +273,7 @@ function viewListing(listingId) {
 async function togglePublished(listingId, currentStatus) {
       const newStatus = currentStatus === 'draft' ? 'published' : 'draft';
       try {
-            const response = await fetch(`/api/listings/${listingId}/status`, {
+            const response = await fetch(`${API_BASE_URL}/api/listings/${listingId}/status`, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ status: newStatus })
@@ -286,7 +291,7 @@ async function deleteListing(listingId) {
       if (!confirm('Are you sure you want to delete this listing?')) return;
 
       try {
-            const response = await fetch(`/api/listings/${listingId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/listings/${listingId}`, {
                   method: 'DELETE'
             });
 
@@ -448,7 +453,7 @@ async function submitForm() {
                   formData.append('photo', file);
 
                   try {
-                        const response = await fetch('/api/upload', {
+                        const response = await fetch(`${API_BASE_URL}/api/upload`, {
                               method: 'POST',
                               body: formData
                         });
@@ -676,4 +681,11 @@ function resetForm() {
 window.addEventListener('load', () => {
       uploadBox.focus();
       updateEbayConnectionUI();
+
+      // Register PWA service worker
+      if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js').catch((err) => {
+                  console.warn('Service worker registration failed:', err);
+            });
+      }
 });

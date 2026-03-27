@@ -3,10 +3,13 @@ OpenAI API client
 Handles image analysis with GPT-4o Vision
 """
 import json
+import logging
 import base64
 import requests
 from src.config import OPENAI_API_KEY, OPENAI_MODEL, USE_OPENAI_MOCK
 from src.api.mock_openai import describe_image_mock
+
+logger = logging.getLogger(__name__)
 
 
 def describe_image(image_path: str) -> dict:
@@ -21,7 +24,7 @@ def describe_image(image_path: str) -> dict:
     
     # Use mock if enabled or no API key
     if USE_OPENAI_MOCK or not OPENAI_API_KEY:
-        print("📝 Using MOCK OpenAI (not consuming API calls)")
+        logger.info("Using MOCK OpenAI (not consuming API calls)")
         return describe_image_mock(image_path)
     
     # Read and encode image
@@ -29,7 +32,7 @@ def describe_image(image_path: str) -> dict:
         with open(image_path, "rb") as f:
             img_bytes = f.read()
     except FileNotFoundError:
-        print(f"❌ Image not found: {image_path}")
+        logger.warning("Image not found: %s", image_path)
         # Fallback to mock
         return describe_image_mock(image_path)
     
@@ -110,7 +113,7 @@ def describe_image(image_path: str) -> dict:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
     except Exception as e:
-        print(f"⚠️  API error: {e}. Falling back to mock data")
+        logger.warning("API error: %s. Falling back to mock data", e)
         return describe_image_mock(image_path)
     
     # Parse response

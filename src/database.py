@@ -2,11 +2,16 @@
 Database models and operations for managing eBay listings
 """
 
+import logging
 import sqlite3
 import json
 from pathlib import Path
 
-DATABASE_PATH = Path(__file__).parent.parent / "listings.db"
+from src.paths import get_db_path
+
+logger = logging.getLogger(__name__)
+
+DATABASE_PATH = get_db_path()
 
 
 def init_db():
@@ -83,7 +88,7 @@ def save_listing(title, filename, analysis, comparable_listings, suggested_price
             conn.commit()
             return listing_id
     except Exception as e:
-        print(f"Error saving listing: {e}")
+        logger.error("Error saving listing: %s", e)
         return None
 
 
@@ -122,7 +127,7 @@ def get_all_listings():
 
             return listings
     except Exception as e:
-        print(f"Error fetching listings: {e}")
+        logger.error("Error fetching listings: %s", e)
         return []
 
 
@@ -183,7 +188,7 @@ def get_listing(listing_id):
             "updated_at": row[16],
         }
     except Exception as e:
-        print(f"Error fetching listing {listing_id}: {e}")
+        logger.error("Error fetching listing %s: %s", listing_id, e)
         return None
 
 
@@ -206,7 +211,7 @@ def update_listing_status(listing_id, status):
             conn.commit()
             return updated > 0
     except Exception as e:
-        print(f"Error updating listing status: {e}")
+        logger.error("Error updating listing status: %s", e)
         return False
 
 
@@ -222,7 +227,7 @@ def delete_listing(listing_id):
             conn.commit()
             return deleted > 0
     except Exception as e:
-        print(f"Error deleting listing: {e}")
+        logger.error("Error deleting listing: %s", e)
         return False
 
 
@@ -246,7 +251,7 @@ def get_stats():
 
         return {"total": total, "drafts": drafts, "published": published, "archived": archived}
     except Exception as e:
-        print(f"Error getting stats: {e}")
+        logger.error("Error getting stats: %s", e)
         return {"total": 0, "drafts": 0, "published": 0, "archived": 0}
 
 
@@ -284,5 +289,5 @@ def record_publish_result(listing_id, published, external_listing_id=None, error
             conn.commit()
             return updated > 0
     except Exception as e:
-        print(f"Error recording publish result: {e}")
+        logger.error("Error recording publish result: %s", e)
         return False
