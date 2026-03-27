@@ -118,6 +118,13 @@ class TestFormatDescription:
         assert "Set" not in result
         assert "Year" not in result
 
+    def test_features_as_string_rendered_directly(self):
+        """When features is a plain string it should appear as-is in the description."""
+        analysis = {"brand": "Topps", "features": "Serial numbered /99"}
+        result = format_description(analysis)
+        assert "Serial numbered /99" in result
+        assert "Features" in result
+
 
 # ---------------------------------------------------------------------------
 # build_search_query

@@ -214,3 +214,13 @@ def test_process_listing_save_failure_returns_error(monkeypatch):
 
     result = process_listing('card.jpg', 'card.jpg')
     assert result['success'] is False
+
+
+def test_process_listing_returns_error_when_no_analyses_detected(monkeypatch):
+    """process_listing should return a failure response when normalize returns an empty list."""
+    monkeypatch.setattr('src.app.describe_image', lambda _p: {"brand": "X"})
+    monkeypatch.setattr('src.app.normalize_analysis_cards', lambda _a: [])
+
+    result = process_listing('item.jpg', 'item.jpg')
+    assert result['success'] is False
+    assert 'No items detected' in result.get('error', '') or 'No items detected' in result.get('message', '')

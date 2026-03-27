@@ -226,3 +226,71 @@ def test_save_listing_with_minimal_analysis():
     row = db.get_listing(lid)
     assert row["brand"] == ""
     assert row["features"] == []
+
+
+# ---------------------------------------------------------------------------
+# init_db migration (backfill of publish-tracking columns)
+# ---------------------------------------------------------------------------
+
+def test_init_db_migration_adds_missing_publish_columns(tmp_path, monkeypatch):
+    """init_db should add publish-tracking columns to a legacy schema that lacks them."""
+    import sqlite3
+
+    db_path = tmp_path / "legacy.db"
+    monkeypatch.setattr(db, "DATABASE_PATH", db_path)
+
+    # Create the old schema without publish-tracking columns
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE listings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                filename TEXT,
+                category TEXT,
+                condition TEXT,
+                brand TEXT,
+                model TEXT,
+                features TEXT,
+                suggested_price REAL,
+                comparable_listings TEXT,
+                payload TEXT NOT NULL,
+                status TEXT DEFAULT 'draft',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+
+    db.init_db()
+
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.execute("PRAGMA table_info(listings)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+    assert "external_listing_id" in columns
+    assert "published_at" in columns
+    assert "publish_error" in columns
+
+
+# ---------------------------------------------------------------------------
+# Robustness: corrupt payload JSON
+# ---------------------------------------------------------------------------
+
+def test_get_listing_handles_corrupt_payload_json(tmp_path, monkeypatch):
+    """get_listing should return an empty dict for payload when payload JSON is corrupt."""
+    import sqlite3
+
+    monkeypatch.setattr(db, "DATABASE_PATH", tmp_path / "corrupt_payload.db")
+    db.init_db()
+    lid = db.save_listing(**_make_listing())
+
+    with sqlite3.connect(tmp_path / "corrupt_payload.db") as conn:
+        conn.execute("UPDATE listings SET payload = 'NOT VALID JSON' WHERE id = ?", (lid,))
+        conn.commit()
+
+    row = db.get_listing(lid)
+    assert row is not None
+    assert row["payload"] == {}
+
