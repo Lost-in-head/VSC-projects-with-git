@@ -632,35 +632,340 @@ footer {
       display: none !important;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* ── Screen-reader only utility ─────────────────────────────────────────── */
+.sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+}
+
+/* ── Keyboard focus visible ─────────────────────────────────────────────── */
+button:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible {
+      outline: 3px solid #667eea;
+      outline-offset: 2px;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+      * {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+      }
+}
+
+/* ── High contrast mode ─────────────────────────────────────────────────── */
+@media (prefers-contrast: more) {
+      body {
+            color: #000;
+            background: #fff;
+      }
+
+      .btn-primary {
+            border: 2px solid currentColor;
+      }
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+      body {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+      }
+
+      main {
+            background-color: #2d2d2d;
+      }
+}
+
+/* ── Mobile-first responsive design ────────────────────────────────────── */
+
+/* BASE: Mobile (< 480px) */
+.container {
+      max-width: 100%;
+      padding: 10px;
+}
+
+header h1 {
+      font-size: 1.5em;
+}
+
+.nav-tabs {
+      flex-direction: column;
+      gap: 8px;
+}
+
+.tab-btn {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 0.85em;
+}
+
+main {
+      padding: 20px;
+      border-radius: 8px;
+}
+
+.upload-box {
+      padding: 30px 20px;
+}
+
+.upload-icon {
+      width: 40px;
+      height: 40px;
+}
+
+.preview-grid {
+      grid-template-columns: 1fr;
+}
+
+.result-card {
+      padding: 15px;
+}
+
+.stats-row {
+      flex-direction: row;
+      gap: 10px;
+      flex-wrap: wrap;
+}
+
+.stat-card {
+      flex: 1;
+      min-width: 60px;
+      padding: 10px;
+}
+
+.listings-table {
+      font-size: 0.85em;
+}
+
+.listings-table th,
+.listings-table td {
+      padding: 8px 4px;
+}
+
+.action-icons {
+      gap: 4px;
+}
+
+.action-btn {
+      padding: 4px 8px;
+      font-size: 0.75em;
+}
+
+.info-grid {
+      grid-template-columns: 1fr;
+}
+
+.price-display {
+      font-size: 2em;
+}
+
+.action-buttons {
+      flex-direction: column;
+}
+
+.btn-primary,
+.btn-secondary {
+      width: 100%;
+}
+
+.listings-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-header {
+      flex-direction: column;
+      gap: 15px;
+}
+
+.results-grid {
+      grid-template-columns: 1fr;
+}
+
+
+/* SMALL TABLET: 480px and up */
+@media (min-width: 480px) {
       header h1 {
             font-size: 1.8em;
       }
 
-      main {
-            padding: 20px;
-      }
-
       .upload-box {
-            padding: 40px 20px;
+            padding: 40px 30px;
       }
 
-      .info-grid {
-            grid-template-columns: 1fr;
+      .preview-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
       }
 
-      .price-display {
+      .stat-card {
+            min-width: auto;
+      }
+}
+
+
+/* TABLET: 768px and up */
+@media (min-width: 768px) {
+      .container {
+            max-width: 95%;
+            margin: 0 auto;
+      }
+
+      header h1 {
             font-size: 2em;
       }
 
+      header p {
+            font-size: 1em;
+      }
+
+      .nav-tabs {
+            flex-direction: row;
+            gap: 12px;
+            justify-content: center;
+      }
+
+      .tab-btn {
+            width: auto;
+            padding: 10px 20px;
+            font-size: 0.95em;
+      }
+
+      main {
+            padding: 30px;
+      }
+
+      .upload-box {
+            padding: 50px 40px;
+      }
+
+      .upload-icon {
+            width: 50px;
+            height: 50px;
+      }
+
+      .preview-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+      }
+
+      .result-card {
+            padding: 20px;
+      }
+
+      .listings-container {
+            overflow-x: visible;
+      }
+
+      .listings-table {
+            font-size: 0.95em;
+      }
+
+      .listings-table th,
+      .listings-table td {
+            padding: 12px;
+      }
+
+      .info-grid {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      }
+
+      .price-display {
+            font-size: 2.5em;
+      }
+
       .action-buttons {
-            flex-direction: column;
+            flex-direction: row;
       }
 
       .btn-primary,
       .btn-secondary {
-            width: 100%;
+            width: auto;
+      }
+
+      .dashboard-header {
+            flex-direction: row;
+            align-items: flex-start;
+      }
+
+      .results-grid {
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      }
+}
+
+
+/* DESKTOP: 1024px and up */
+@media (min-width: 1024px) {
+      .container {
+            max-width: 1000px;
+      }
+
+      header h1 {
+            font-size: 2.5em;
+      }
+
+      .nav-tabs {
+            gap: 15px;
+      }
+
+      .upload-box {
+            padding: 60px 40px;
+      }
+
+      .preview-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+      }
+
+      .stats-row {
+            gap: 20px;
+      }
+}
+
+
+/* LARGE SCREENS: 1440px and up */
+@media (min-width: 1440px) {
+      .container {
+            max-width: 1200px;
+      }
+
+      .preview-grid {
+            grid-template-columns: repeat(5, 1fr);
+      }
+
+      header h1 {
+            font-size: 3em;
+      }
+}
+
+
+/* PRINT STYLES */
+@media print {
+      body {
+            background: white;
+      }
+
+      header,
+      .nav-tabs,
+      .upload-section,
+      .action-buttons {
+            display: none;
+      }
+
+      .result-card {
+            page-break-inside: avoid;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
       }
 }
 .ebay-connect-row {
@@ -699,54 +1004,6 @@ footer {
       font-size: 0.85rem;
       letter-spacing: 0.2px;
       box-shadow: 0 6px 16px rgba(255, 87, 34, 0.35);
-}
-
-/* Mobile — 600px breakpoint */
-@media (max-width: 600px) {
-      .results-grid {
-            grid-template-columns: 1fr;
-      }
-
-      .info-grid {
-            grid-template-columns: 1fr;
-      }
-
-      .dashboard-header {
-            flex-direction: column;
-            gap: 15px;
-      }
-
-      .stats-row {
-            flex-wrap: wrap;
-      }
-
-      main {
-            padding: 20px;
-      }
-
-      .upload-box {
-            padding: 40px 20px;
-      }
-
-      .action-buttons {
-            flex-direction: column;
-      }
-
-      .btn-primary,
-      .btn-secondary {
-            width: 100%;
-      }
-
-      .listings-container {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-      }
-
-      .listings-table th,
-      .listings-table td {
-            padding: 8px 6px;
-            font-size: 0.8em;
-      }
 }
 
 /* ── Settings Page ──────────────────────────────────────────────────────── */

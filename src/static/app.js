@@ -42,9 +42,60 @@ const retryBtn = document.getElementById('retryBtn');
 const connectEbayBtn = document.getElementById('connectEbayBtn');
 const ebayConnectionStatus = document.getElementById('ebayConnectionStatus');
 
-let selectedFiles = [];
-let processedResults = [];
-let ebayConnected = false;
+// State is managed by appState (state.js)
+
+// ── File Validation ──────────────────────────────────────────────────────────
+
+class FileValidator {
+      static ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif']);
+      static MAX_SIZE_BYTES = 16 * 1024 * 1024; // 16MB
+      static MAX_FILES = 50;
+
+      static validateFile(file) {
+            const errors = [];
+            if (!this.ALLOWED_TYPES.has(file.type)) {
+                  errors.push(`${file.name}: Invalid type ${file.type}`);
+            }
+            if (file.size > this.MAX_SIZE_BYTES) {
+                  const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+                  errors.push(`${file.name}: Too large (${sizeMb}MB > 16MB)`);
+            }
+            if (file.size === 0) {
+                  errors.push(`${file.name}: File is empty`);
+            }
+            return errors;
+      }
+
+      static validateBatch(files) {
+            const errors = [];
+            if (files.length > this.MAX_FILES) {
+                  errors.push(`Too many files (${files.length} > ${this.MAX_FILES})`);
+                  return { valid: [], errors };
+            }
+            const validFiles = [];
+            for (const file of files) {
+                  const fileErrors = this.validateFile(file);
+                  if (fileErrors.length) {
+                        errors.push(...fileErrors);
+                  } else {
+                        validFiles.push(file);
+                  }
+            }
+            return { valid: validFiles, errors };
+      }
+}
+
+// ── Accessibility helpers ────────────────────────────────────────────────────
+
+function announceToScreenReaders(message) {
+      const announcement = document.createElement('div');
+      announcement.className = 'sr-only';
+      announcement.setAttribute('aria-live', 'assertive');
+      announcement.setAttribute('aria-atomic', 'true');
+      announcement.textContent = message;
+      document.body.appendChild(announcement);
+      setTimeout(() => announcement.remove(), 1000);
+}
 
 
 function setSectionVisibility(section, visible, displayValue = 'block') {
@@ -55,10 +106,10 @@ function setSectionVisibility(section, visible, displayValue = 'block') {
 
 function updateEbayConnectionUI() {
       if (!ebayConnectionStatus || !connectEbayBtn) return;
-      ebayConnectionStatus.textContent = ebayConnected ? 'Connected (Mock OAuth)' : 'Not Connected';
-      ebayConnectionStatus.classList.toggle('connected', ebayConnected);
-      ebayConnectionStatus.classList.toggle('disconnected', !ebayConnected);
-      connectEbayBtn.textContent = ebayConnected ? '✅ eBay Connected' : '🔐 Connect eBay';
+      ebayConnectionStatus.textContent = appState.isEbayConnected() ? 'Connected (Mock OAuth)' : 'Not Connected';
+      ebayConnectionStatus.classList.toggle('connected', appState.isEbayConnected());
+      ebayConnectionStatus.classList.toggle('disconnected', !appState.isEbayConnected());
+      connectEbayBtn.textContent = appState.isEbayConnected() ? '✅ eBay Connected' : '🔐 Connect eBay';
 }
 
 function notifyHighValueCards(highValueCount) {
@@ -86,9 +137,9 @@ function notifyHighValueCards(highValueCount) {
 }
 
 async function listForSale(index) {
-      const result = processedResults[index];
+      const result = appState.getResult(index);
       if (!result || !result.success) return;
-      if (!ebayConnected) {
+      if (!appState.isEbayConnected()) {
             alert('Please click Connect eBay first (mock OAuth).');
             return;
       }
@@ -138,10 +189,7 @@ function switchTab(tabName, clickedBtn = null) {
       activeTab.classList.add('active');
       activeTab.classList.remove('hidden');
 
-      // Load dashboard when switching to it
-      if (tabName === 'dashboard') {
-            loadDashboard();
-      }
+      appState.switchTab(tabName);
 }
 
 // Dashboard Functions
@@ -184,12 +232,13 @@ function displayDashboard(listings) {
 
       updateStats(listings.length, drafts, published);
 
-      // Build table rows
+      // Build table rows using data-* attributes and CSS classes (no inline onclick)
       tbody.innerHTML = listings.map(listing => {
             const date = new Date(listing.created_at).toLocaleDateString();
             const statusClass = `status-${escapeHtml(listing.status)}`;
+            const toggleLabel = listing.status === 'draft' ? 'Publish listing' : 'Move to draft';
             return `
-                  <tr>
+                  <tr data-listing-id="${listing.id}" data-status="${escapeHtml(listing.status)}">
                         <td><strong>${escapeHtml(listing.title)}</strong></td>
                         <td>${escapeHtml(listing.brand || '-')} ${listing.model ? '(' + escapeHtml(listing.model) + ')' : ''}</td>
                         <td>$${listing.suggested_price ? listing.suggested_price.toFixed(2) : '-'}</td>
@@ -199,9 +248,9 @@ function displayDashboard(listings) {
                         <td>${escapeHtml(date)}</td>
                         <td>
                               <div class="action-icons">
-                                    <button class="action-btn" onclick="viewListing(${listing.id})" title="View Details">👁️</button>
-                                    <button class="action-btn" onclick="togglePublished(${listing.id}, '${escapeHtml(listing.status)}')" title="Toggle Status">${listing.status === 'draft' ? '📤' : '📋'}</button>
-                                    <button class="action-btn danger" onclick="deleteListing(${listing.id})" title="Delete">🗑️</button>
+                                    <button class="action-btn view-btn" title="View Details" aria-label="View details for ${escapeHtml(listing.title)}">👁️</button>
+                                    <button class="action-btn toggle-btn" title="Toggle Status" aria-label="${toggleLabel} for ${escapeHtml(listing.title)}">${listing.status === 'draft' ? '📤' : '📋'}</button>
+                                    <button class="action-btn danger delete-btn" title="Delete" aria-label="Delete ${escapeHtml(listing.title)}">🗑️</button>
                               </div>
                         </td>
                   </tr>
@@ -214,6 +263,33 @@ function updateStats(total, drafts, published) {
       document.getElementById('draftCount').textContent = drafts;
       document.getElementById('publishedCount').textContent = published;
 }
+
+// Event delegation for dashboard table actions
+document.getElementById('listingsBody').addEventListener('click', (e) => {
+      const viewBtn = e.target.closest('.view-btn');
+      const deleteBtn = e.target.closest('.delete-btn');
+      const toggleBtn = e.target.closest('.toggle-btn');
+
+      if (viewBtn) {
+            const row = viewBtn.closest('tr');
+            viewListing(parseInt(row.dataset.listingId, 10));
+      }
+      if (deleteBtn) {
+            const row = deleteBtn.closest('tr');
+            deleteListing(parseInt(row.dataset.listingId, 10));
+      }
+      if (toggleBtn) {
+            const row = toggleBtn.closest('tr');
+            togglePublished(parseInt(row.dataset.listingId, 10), row.dataset.status);
+      }
+});
+
+// Subscribe to tab changes to auto-load dashboard
+appState.subscribe(({ key }) => {
+      if (key === 'currentTab' && appState.getCurrentTab() === 'dashboard') {
+            loadDashboard();
+      }
+});
 
 function viewListing(listingId) {
       fetch(`${API_BASE_URL}/api/listings/${listingId}`)
@@ -241,7 +317,7 @@ function viewListing(listingId) {
                         : '—';
 
                   modal.innerHTML = `
-                        <button onclick="this.closest('.listing-modal-overlay').remove()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.5em;cursor:pointer;color:#666;">×</button>
+                        <button class="modal-close-btn" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.5em;cursor:pointer;color:#666;" aria-label="Close listing details">×</button>
                         <h2 style="margin:0 0 16px;color:#333;font-size:1.2em;">${escapeHtml(listing.title)}</h2>
                         <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
                               <tr><td style="padding:6px 0;color:#999;width:140px;">Brand / Model</td><td>${escapeHtml(listing.brand || '—')} ${listing.model ? '/ ' + escapeHtml(listing.model) : ''}</td></tr>
@@ -265,6 +341,7 @@ function viewListing(listingId) {
                   overlay.className = 'listing-modal-overlay';
                   overlay.appendChild(modal);
                   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+                  modal.querySelector('.modal-close-btn').addEventListener('click', () => overlay.remove());
                   document.body.appendChild(overlay);
             })
             .catch(() => alert(`Could not load listing ${listingId}.`));
@@ -308,6 +385,14 @@ uploadBox.addEventListener('dragover', handleDragOver);
 uploadBox.addEventListener('dragleave', handleDragLeave);
 uploadBox.addEventListener('drop', handleDrop);
 
+// Keyboard activation for the upload box (Enter/Space)
+uploadBox.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            photoInput.click();
+      }
+});
+
 photoInput.addEventListener('change', handleFileSelect);
 clearBtn.addEventListener('click', clearPreview);
 submitBtn.addEventListener('click', submitForm);
@@ -316,7 +401,7 @@ newListingBtn.addEventListener('click', resetForm);
 retryBtn.addEventListener('click', resetForm);
 if (connectEbayBtn) {
       connectEbayBtn.addEventListener('click', () => {
-            ebayConnected = true;
+            appState.setEbayConnected(true);
             updateEbayConnectionUI();
             alert('✅ eBay connected successfully (mock OAuth).');
       });
@@ -354,29 +439,16 @@ function handleFileSelect(e) {
 }
 
 function handleFileInputs(fileList) {
-      selectedFiles = [];
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-      const maxSize = 16 * 1024 * 1024;
+      const { valid, errors } = FileValidator.validateBatch(Array.from(fileList));
 
-      for (let file of fileList) {
-            // Validate file type
-            if (!allowedTypes.includes(file.type)) {
-                  showError(`Invalid file type: ${file.name}. Use JPG, PNG, or GIF.`);
-                  return;
-            }
-
-            // Validate file size
-            if (file.size > maxSize) {
-                  showError(`File too large: ${file.name}. Maximum 16MB allowed.`);
-                  return;
-            }
-
-            selectedFiles.push(file);
+      if (errors.length) {
+            showError(`Invalid files:\n${errors.join('\n')}`);
+            return;
       }
 
-      if (selectedFiles.length > 0) {
-            showPreview();
-      }
+      appState.clearError();
+      appState.addFiles(valid);
+      showPreview();
 }
 
 // Delegated click handler for the preview grid remove buttons (defined once)
@@ -388,18 +460,35 @@ previewGrid.addEventListener('click', (e) => {
       }
 });
 
+// Delegated click handler for result card action buttons
+resultsGrid.addEventListener('click', (e) => {
+      const copyBtn = e.target.closest('[data-action="copy"]');
+      const listBtn = e.target.closest('[data-action="list-for-sale"]');
+
+      if (copyBtn) {
+            const idx = parseInt(copyBtn.dataset.index, 10);
+            copyPayload(idx, copyBtn);
+      }
+
+      if (listBtn) {
+            const idx = parseInt(listBtn.dataset.index, 10);
+            listForSale(idx);
+      }
+});
+
 function showPreview() {
       previewGrid.innerHTML = '';
-      photoCount.textContent = selectedFiles.length;
+      photoCount.textContent = appState.getFileCount();
 
-      selectedFiles.forEach((file, index) => {
+      appState.selectedFiles.forEach((file, index) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                   const previewItem = document.createElement('div');
                   previewItem.className = 'preview-item';
+                  previewItem.setAttribute('role', 'listitem');
                   previewItem.innerHTML = `
-                        <img src="${e.target.result}" alt="Preview ${index + 1}">
-                        <button class="remove-btn" data-index="${index}">×</button>
+                        <img src="${e.target.result}" alt="Preview of ${escapeHtml(file.name)}">
+                        <button class="remove-btn" data-index="${index}" aria-label="Remove ${escapeHtml(file.name)}">×</button>
                   `;
                   previewGrid.appendChild(previewItem);
             };
@@ -412,8 +501,8 @@ function showPreview() {
 }
 
 function removeFile(index) {
-      selectedFiles.splice(index, 1);
-      if (selectedFiles.length === 0) {
+      appState.removeFile(index);
+      if (appState.getFileCount() === 0) {
             clearPreview();
       } else {
             showPreview();
@@ -421,7 +510,7 @@ function removeFile(index) {
 }
 
 function clearPreview() {
-      selectedFiles = [];
+      appState.clearFiles();
       photoInput.value = '';
       setSectionVisibility(previewSection, false);
       uploadBox.style.display = 'block';
@@ -429,7 +518,7 @@ function clearPreview() {
 }
 
 async function submitForm() {
-      if (selectedFiles.length === 0) {
+      if (appState.getFileCount() === 0) {
             showError('Please select at least one photo first.');
             return;
       }
@@ -441,12 +530,13 @@ async function submitForm() {
             setSectionVisibility(resultsSection, false);
             setSectionVisibility(errorSection, false);
 
-            processedResults = [];
-            const totalFiles = selectedFiles.length;
+            appState.clearResults();
+            appState.setProcessing(true);
+            const totalFiles = appState.getFileCount();
 
             // Process each file
-            for (let i = 0; i < selectedFiles.length; i++) {
-                  const file = selectedFiles[i];
+            for (let i = 0; i < appState.selectedFiles.length; i++) {
+                  const file = appState.selectedFiles[i];
                   updateProgress(i, totalFiles, `Processing ${i + 1} of ${totalFiles}...`);
 
                   const formData = new FormData();
@@ -462,13 +552,13 @@ async function submitForm() {
 
                         if (!response.ok || !data.success) {
                               console.warn(`Failed to process ${file.name}:`, data.error);
-                              processedResults.push({
+                              appState.addResult({
                                     filename: file.name,
                                     success: false,
                                     error: data.error || 'Unknown error'
                               });
                         } else {
-                              processedResults.push({
+                              appState.addResult({
                                     filename: file.name,
                                     success: true,
                                     data: data
@@ -476,7 +566,7 @@ async function submitForm() {
                         }
                   } catch (error) {
                         console.warn(`Error processing ${file.name}:`, error);
-                        processedResults.push({
+                        appState.addResult({
                               filename: file.name,
                               success: false,
                               error: error.message
@@ -485,11 +575,16 @@ async function submitForm() {
             }
 
             // Display results
+            appState.setProcessing(false);
             displayBatchResults();
             setSectionVisibility(loadingSection, false);
             setSectionVisibility(resultsSection, true);
+            announceToScreenReaders(
+                  `Processing complete. Generated ${appState.getSuccessfulResults().length} listing(s).`
+            );
 
       } catch (error) {
+            appState.setProcessing(false);
             console.error('Error:', error);
             showError('Batch processing failed: ' + error.message);
       }
@@ -499,19 +594,25 @@ function updateProgress(current, total, message) {
       const percentage = ((current + 1) / total) * 100;
       progressFill.style.width = percentage + '%';
       loadingProgress.textContent = message;
+
+      // Update ARIA attributes
+      const progressBar = document.querySelector('[role="progressbar"]');
+      if (progressBar) {
+            progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+      }
 }
 
 function displayBatchResults() {
-      const successful = processedResults.filter(r => r.success);
+      const successful = appState.getSuccessfulResults();
       const successCount = successful.length;
       resultCount.textContent = successCount;
 
       resultsGrid.innerHTML = '';
 
-      const highValueCount = successful.filter(r => r.data?.is_high_value === true).length;
+      const highValueCount = appState.getHighValueResults().length;
       notifyHighValueCards(highValueCount);
 
-      processedResults.forEach((result, index) => {
+      appState.processedResults.forEach((result, index) => {
             if (result.success) {
                   const data = result.data;
                   if (data.mode === 'multi_card' && Array.isArray(data.card_results)) {
@@ -597,8 +698,8 @@ function createResultCard(data, filename, index) {
             </div>
             ${listingsTable}
             <div style="display:flex; gap:8px; margin-top:12px;">
-                  <button class="btn-secondary" style="width: 100%;" onclick="copyPayload(${index})">📋 Copy Payload</button>
-                  <button class="btn-primary" style="width: 100%;" onclick="listForSale(${index})">🛒 List for Sale</button>
+                  <button class="btn-secondary" style="width: 100%;" data-action="copy" data-index="${index}" aria-label="Copy eBay payload for ${escapeHtml(filename)}">📋 Copy Payload</button>
+                  <button class="btn-primary" style="width: 100%;" data-action="list-for-sale" data-index="${index}" aria-label="List ${escapeHtml(filename)} for sale on eBay">🛒 List for Sale</button>
             </div>
       `;
 
@@ -622,16 +723,16 @@ function createErrorCard(filename, error) {
       return card;
 }
 
-function copyPayload(index) {
+function copyPayload(index, btn) {
       const card = resultsGrid.children[index];
       const payload = card.dataset.payload;
+      const button = btn || card.querySelector('[data-action="copy"]');
 
       navigator.clipboard.writeText(payload).then(() => {
-            const btn = card.querySelector('button');
-            const originalText = btn.textContent;
-            btn.textContent = '✓ Copied!';
+            const originalText = button.textContent;
+            button.textContent = '✓ Copied!';
             setTimeout(() => {
-                  btn.textContent = originalText;
+                  button.textContent = originalText;
             }, 2000);
       }).catch(err => {
             console.error('Failed to copy:', err);
@@ -640,9 +741,7 @@ function copyPayload(index) {
 }
 
 function downloadAllListings() {
-      const payloads = processedResults
-            .filter(r => r.success)
-            .map(r => r.data.payload);
+      const payloads = appState.getSuccessfulResults().map(r => r.data.payload);
 
       if (payloads.length === 0) {
             alert('No successful listings to download');
@@ -673,8 +772,10 @@ function resetForm() {
       clearPreview();
       setSectionVisibility(resultsSection, false);
       setSectionVisibility(loadingSection, false);
-      processedResults = [];
+      appState.clearResults();
       progressFill.style.width = '0%';
+      const progressBar = document.querySelector('[role="progressbar"]');
+      if (progressBar) progressBar.setAttribute('aria-valuenow', '0');
 }
 
 // Auto-focus on page load

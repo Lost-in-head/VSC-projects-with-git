@@ -29,40 +29,64 @@
             <main>
                   <!-- Upload Tab Content -->
                   <div id="uploadTab" class="tab-content active">
-                        <section class="upload-section">
-                              <label class="upload-box" id="uploadBox" for="photoInput">
+                        <section class="upload-section" aria-labelledby="uploadSectionTitle">
+                              <h2 id="uploadSectionTitle" class="sr-only">Upload Photos for Listing Generation</h2>
+                              <label class="upload-box"
+                                     id="uploadBox"
+                                     for="photoInput"
+                                     role="button"
+                                     tabindex="0"
+                                     aria-label="Upload area. Click or drag photos here to generate eBay listings"
+                                     aria-describedby="uploadHelp">
                                     <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                          stroke-width="2">
+                                          stroke-width="2"
+                                          aria-hidden="true"
+                                          focusable="false">
                                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                           <polyline points="17 8 12 3 7 8"></polyline>
                                           <line x1="12" y1="3" x2="12" y2="15"></line>
                                     </svg>
                                     <h2>Drop your photos here</h2>
-                                    <p>or click to browse (multiple files OK)</p>
-                                    <input type="file" id="photoInput" accept="image/*" capture="environment" multiple hidden>
+                                    <p id="uploadHelp">or click to browse (multiple files OK)</p>
+                                    <input type="file" id="photoInput" accept="image/*" capture="environment" multiple
+                                          aria-label="Select photos to upload"
+                                          hidden>
                               </label>
                               <p class="file-info">JPG, PNG, or GIF • Max 16MB each • Upload 1+ photos</p>
                         </section>
 
                         <!-- Image Preview -->
-                        <div id="previewSection" class="preview-section hidden">
-                              <h3>📸 Selected Photos (<span id="photoCount">0</span>)</h3>
-                              <div class="preview-grid" id="previewGrid"></div>
+                        <section id="previewSection"
+                              class="preview-section hidden"
+                              aria-labelledby="previewTitle"
+                              aria-live="polite">
+                              <h3 id="previewTitle">📸 Selected Photos (<span id="photoCount" aria-live="polite">0</span>)</h3>
+                              <div class="preview-grid" id="previewGrid" role="list"></div>
                               <div class="preview-actions">
-                                    <button id="clearBtn" class="btn-secondary">Clear All</button>
-                                    <button id="submitBtn" class="btn-primary">Generate Listings</button>
+                                    <button id="clearBtn" class="btn-secondary"
+                                          aria-label="Remove all selected photos">Clear All</button>
+                                    <button id="submitBtn" class="btn-primary"
+                                          aria-label="Start generating eBay listings for selected photos">Generate Listings</button>
                               </div>
-                        </div>
+                        </section>
 
                         <!-- Loading State -->
-                        <div id="loadingSection" class="loading-section hidden">
-                              <div class="spinner"></div>
-                              <h2>Processing your images...</h2>
-                              <p id="loadingProgress">Analyzing photos • Searching eBay • Calculating prices</p>
-                              <div class="progress-bar">
+                        <section id="loadingSection"
+                              class="loading-section hidden"
+                              aria-labelledby="loadingTitle"
+                              aria-live="assertive">
+                              <div class="spinner" aria-hidden="true"></div>
+                              <h2 id="loadingTitle">Processing your images...</h2>
+                              <p id="loadingProgress" aria-live="polite">Analyzing photos • Searching eBay • Calculating prices</p>
+                              <div class="progress-bar"
+                                   role="progressbar"
+                                   aria-valuenow="0"
+                                   aria-valuemin="0"
+                                   aria-valuemax="100"
+                                   aria-label="Processing progress">
                                     <div id="progressFill" class="progress-fill"></div>
                               </div>
-                        </div>
+                        </section>
 
                         <!-- Results Section -->
                         <div id="resultsSection" class="results-section hidden">
@@ -81,13 +105,17 @@
                         </div>
 
                         <!-- Error State -->
-                        <div id="errorSection" class="error-section hidden">
+                        <section id="errorSection"
+                              class="error-section hidden"
+                              role="alert"
+                              aria-labelledby="errorTitle"
+                              aria-live="assertive">
                               <div class="error-box">
-                                    <h2>❌ Error</h2>
+                                    <h2 id="errorTitle">❌ Error</h2>
                                     <p id="errorMessage"></p>
                                     <button id="retryBtn" class="btn-primary">Try Again</button>
                               </div>
-                        </div>
+                        </section>
                   </div> <!-- end uploadTab -->
 
                   <!-- Dashboard Tab Content -->
@@ -142,6 +170,7 @@
             </footer>
       </div>
 
+      <script src="{{ url_for('static', filename='state.js') }}"></script>
       <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 
