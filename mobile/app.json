@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Cards4Sale",
+    "slug": "cards4sale",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cards4sale.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cards4Sale needs camera access to photograph items for listing generation.",
+        "NSPhotoLibraryUsageDescription": "Cards4Sale needs photo library access to select item photos for listing generation."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4F46E5"
+      },
+      "package": "com.cards4sale.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cards4Sale needs camera access to photograph items for listing generation."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cards4Sale needs photo library access to select item photos for listing generation."
+        }
+      ]
+    ]
+  }
+}

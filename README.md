@@ -196,6 +196,129 @@ Then run normally — you'll see realistic demo data.
 - Auto-publish listings
 - Track published listings
 
+### Phase 5: Mobile App 📱 IN PROGRESS
+
+See **[Mobile App](#-mobile-app-react-native--expo)** section below.
+
+---
+
+## 📱 Mobile App (React Native / Expo)
+
+The `mobile/` directory contains a cross-platform mobile app (Android + iOS) built
+with [Expo](https://expo.dev) and React Native.  It communicates with the same Flask
+backend via its REST API.
+
+### Mobile Features (Phase 1 – MVP)
+
+| Feature | Status |
+|---|---|
+| Take photo with device camera | ✅ |
+| Pick photo from gallery | ✅ |
+| Upload photo → AI generates listing | ✅ |
+| View single-card result with price | ✅ |
+| View multi-card batch result | ✅ |
+| Browse all saved listings | ✅ |
+| View listing detail | ✅ |
+| Publish listing to eBay | ✅ |
+| Archive / delete listing | ✅ |
+| Configurable backend URL | ✅ |
+
+### Mobile Architecture
+
+```
+mobile/
+├── App.tsx                          # Entry point
+├── app.json                         # Expo config (iOS + Android bundle IDs)
+├── package.json                     # npm dependencies
+├── tsconfig.json                    # TypeScript config
+├── babel.config.js                  # Babel config
+└── src/
+    ├── api/
+    │   └── client.ts                # Typed API client for the Flask backend
+    ├── navigation/
+    │   └── AppNavigator.tsx         # Bottom-tab + stack navigator
+    ├── screens/
+    │   ├── HomeScreen.tsx           # Camera / gallery picker + upload
+    │   ├── CameraScreen.tsx         # Full-screen camera view
+    │   ├── ResultScreen.tsx         # Generated listing result(s)
+    │   ├── ListingsScreen.tsx       # Saved-listings list
+    │   └── ListingDetailScreen.tsx  # Listing detail + publish / delete
+    ├── components/
+    │   └── ListingCard.tsx          # Reusable listing card
+    └── types/
+        └── index.ts                 # Shared TypeScript types
+```
+
+### Mobile Prerequisites
+
+- [Node.js 18+](https://nodejs.org/)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/): `npm install -g expo-cli`
+- For iOS: macOS + Xcode 15+
+- For Android: Android Studio + emulator **or** a physical device with [Expo Go](https://expo.dev/client)
+
+### Mobile Quick Start
+
+#### 1. Start the Flask backend
+
+Make sure the backend is running and accessible from your device/emulator:
+
+```bash
+# From project root
+source venv/bin/activate
+bash run_web.sh          # starts on http://0.0.0.0:5000
+```
+
+> **Android emulator**: the backend URL is `http://10.0.2.2:5000`  
+> **iOS simulator**: use `http://localhost:5000`  
+> **Physical device**: use your machine's LAN IP, e.g. `http://192.168.1.42:5000`
+
+#### 2. Configure the backend URL
+
+Edit `mobile/src/api/client.ts` and set `BASE_URL` to the correct address before
+building, or call `setBaseUrl(url)` at app startup.
+
+#### 3. Install mobile dependencies
+
+```bash
+cd mobile
+npm install
+```
+
+#### 4. Run the app
+
+```bash
+# Interactive Expo menu (scan QR with Expo Go)
+npx expo start
+
+# Android emulator
+npx expo start --android
+
+# iOS simulator (macOS only)
+npx expo start --ios
+```
+
+### Building for Production
+
+```bash
+# Install EAS CLI
+npm install -g eas-cli
+eas login
+
+# Configure the project (first time only)
+eas build:configure
+
+# Build for Android (.aab / .apk)
+eas build --platform android
+
+# Build for iOS (.ipa)
+eas build --platform ios
+```
+
+### Backend CORS
+
+The Flask backend already has CORS enabled for all `/api/*` routes
+(via `flask-cors`), so mobile clients can connect without proxy issues.
+
 ## Useful Commands
 
 ```bash
