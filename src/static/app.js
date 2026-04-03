@@ -136,17 +136,13 @@ function notifyHighValueCards(highValueCount) {
       alert(message);
 }
 
-async function listForSale(index) {
-      const result = appState.getResult(index);
-      if (!result || !result.success) return;
-      if (!appState.isEbayConnected()) {
-            alert('Please click Connect eBay first (mock OAuth).');
-            return;
-      }
-
-      const listingId = result.data?.listing_id;
+async function listForSale(listingId) {
       if (!listingId) {
             alert('Listing ID missing for publish action.');
+            return;
+      }
+      if (!appState.isEbayConnected()) {
+            alert('Please click Connect eBay first (mock OAuth).');
             return;
       }
 
@@ -466,13 +462,13 @@ resultsGrid.addEventListener('click', (e) => {
       const listBtn = e.target.closest('[data-action="list-for-sale"]');
 
       if (copyBtn) {
-            const idx = parseInt(copyBtn.dataset.index, 10);
-            copyPayload(idx, copyBtn);
+            const card = copyBtn.closest('.result-card');
+            copyPayload(card, copyBtn);
       }
 
       if (listBtn) {
-            const idx = parseInt(listBtn.dataset.index, 10);
-            listForSale(idx);
+            const listingId = listBtn.dataset.listingId;
+            listForSale(listingId);
       }
 });
 
@@ -615,17 +611,15 @@ function displayBatchResults() {
       appState.processedResults.forEach((result, index) => {
             if (result.success) {
                   const data = result.data;
-                  if (data.mode === 'multi_card' && Array.isArray(data.card_results)) {
-                        // Multi-card response: render a card for each detected item
-                        data.card_results.forEach((cardResult, cardIndex) => {
-                              const label = `${result.filename} (Card ${cardIndex + 1})`;
-                              const card = createResultCard(cardResult, label, index);
-                              resultsGrid.appendChild(card);
-                        });
-                  } else {
-                        const card = createResultCard(data, result.filename, index);
+                  // Normalized response: always an array of listings
+                  const listings = Array.isArray(data.listings) ? data.listings : [data];
+                  listings.forEach((listingItem, listingIndex) => {
+                        const label = listings.length > 1
+                              ? `${result.filename} (Card ${listingIndex + 1})`
+                              : result.filename;
+                        const card = createResultCard(listingItem, label);
                         resultsGrid.appendChild(card);
-                  }
+                  });
             } else {
                   const errorCard = createErrorCard(result.filename, result.error);
                   resultsGrid.appendChild(errorCard);
@@ -633,7 +627,7 @@ function displayBatchResults() {
       });
 }
 
-function createResultCard(data, filename, index) {
+function createResultCard(data, filename) {
       const analysis = data.analysis;
       const listings = data.comparable_listings;
       const price = data.suggested_price;
@@ -698,8 +692,8 @@ function createResultCard(data, filename, index) {
             </div>
             ${listingsTable}
             <div style="display:flex; gap:8px; margin-top:12px;">
-                  <button class="btn-secondary" style="width: 100%;" data-action="copy" data-index="${index}" aria-label="Copy eBay payload for ${escapeHtml(filename)}">📋 Copy Payload</button>
-                  <button class="btn-primary" style="width: 100%;" data-action="list-for-sale" data-index="${index}" aria-label="List ${escapeHtml(filename)} for sale on eBay">🛒 List for Sale</button>
+                  <button class="btn-secondary" style="width: 100%;" data-action="copy" data-listing-id="${escapeHtml(String(data.listing_id || ''))}" aria-label="Copy eBay payload for ${escapeHtml(filename)}">📋 Copy Payload</button>
+                  <button class="btn-primary" style="width: 100%;" data-action="list-for-sale" data-listing-id="${escapeHtml(String(data.listing_id || ''))}" aria-label="List ${escapeHtml(filename)} for sale on eBay">🛒 List for Sale</button>
             </div>
       `;
 
@@ -723,8 +717,7 @@ function createErrorCard(filename, error) {
       return card;
 }
 
-function copyPayload(index, btn) {
-      const card = resultsGrid.children[index];
+function copyPayload(card, btn) {
       const payload = card.dataset.payload;
       const button = btn || card.querySelector('[data-action="copy"]');
 
@@ -741,7 +734,14 @@ function copyPayload(index, btn) {
 }
 
 function downloadAllListings() {
-      const payloads = appState.getSuccessfulResults().map(r => r.data.payload);
+      // Flatten all listing payloads from the normalized listings array
+      const payloads = appState.getSuccessfulResults().flatMap(r => {
+            const data = r.data;
+            if (Array.isArray(data.listings)) {
+                  return data.listings.map(l => l.payload).filter(Boolean);
+            }
+            return data.payload ? [data.payload] : [];
+      });
 
       if (payloads.length === 0) {
             alert('No successful listings to download');

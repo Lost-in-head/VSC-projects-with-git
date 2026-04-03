@@ -6,6 +6,8 @@ Falls back to mock data if credentials not available
 import base64
 import json
 import logging
+import time
+import threading
 import uuid
 import requests
 from statistics import median
@@ -22,52 +24,103 @@ from src.api.mock_ebay import search_ebay_mock
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# OAuth token cache
+# ---------------------------------------------------------------------------
+
+_token_lock = threading.Lock()
+_cached_token: str | None = None
+_token_expires_at: float = 0.0          # Unix timestamp
+_TOKEN_EXPIRY_BUFFER = 60               # seconds before actual expiry to refresh
+
 
 def get_ebay_token() -> str:
     """
     Obtain OAuth token from eBay (client credentials flow).
+    Caches the token and reuses it until it is close to expiry.
     """
-    if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
-        raise ValueError("eBay credentials not set")
-    
-    auth_str = f"{EBAY_CLIENT_ID}:{EBAY_CLIENT_SECRET}"
-    auth_b64 = base64.b64encode(auth_str.encode()).decode()
-    
-    headers = {
-        "Authorization": f"Basic {auth_b64}",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-    data = {
-        "grant_type": "client_credentials",
-        "scope": "https://api.ebay.com/oauth/api_scope"
-    }
-    
-    response = requests.post(EBAY_OAUTH_ENDPOINT, headers=headers, data=data)
-    response.raise_for_status()
-    return response.json()["access_token"]
+    global _cached_token, _token_expires_at
 
+    with _token_lock:
+        if _cached_token and time.time() < _token_expires_at - _TOKEN_EXPIRY_BUFFER:
+            logger.debug("Reusing cached eBay OAuth token")
+            return _cached_token
+
+        if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
+            raise ValueError("eBay credentials not set")
+
+        auth_str = f"{EBAY_CLIENT_ID}:{EBAY_CLIENT_SECRET}"
+        auth_b64 = base64.b64encode(auth_str.encode()).decode()
+
+        headers = {
+            "Authorization": f"Basic {auth_b64}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        data = {
+            "grant_type": "client_credentials",
+            "scope": "https://api.ebay.com/oauth/api_scope",
+        }
+
+        response = requests.post(EBAY_OAUTH_ENDPOINT, headers=headers, data=data, timeout=15)
+        response.raise_for_status()
+
+        token_data = response.json()
+        _cached_token = token_data["access_token"]
+        expires_in = int(token_data.get("expires_in", 7200))
+        _token_expires_at = time.time() + expires_in
+        logger.info("Fetched new eBay OAuth token (expires in %ds)", expires_in)
+        return _cached_token
+
+
+# ---------------------------------------------------------------------------
+# Simple in-process rate limiter
+# ---------------------------------------------------------------------------
+
+class _RateLimiter:
+    """Token-bucket rate limiter (calls per second)."""
+
+    def __init__(self, calls_per_second: float = 5.0):
+        self._min_interval = 1.0 / calls_per_second
+        self._last_call: float = 0.0
+        self._lock = threading.Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.time()
+            elapsed = now - self._last_call
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+            self._last_call = time.time()
+
+
+_ebay_rate_limiter = _RateLimiter(calls_per_second=5.0)
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def search_ebay(query: str, limit: int = 5) -> list:
     """
     Search eBay using Finding API.
     Falls back to mock if credentials missing or USE_EBAY_MOCK is True.
-    
+
     Returns:
         List of dicts: {title, price, url}
     """
-    
-    # Use mock if enabled or no credentials
     if USE_EBAY_MOCK or not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
         logger.info("Using MOCK eBay search (not consuming API calls)")
         return search_ebay_mock(query, limit)
-    
+
+    _ebay_rate_limiter.wait()
+
     try:
         finding_endpoint = (
             "https://svcs.sandbox.ebay.com/services/search/FindingService/v1"
             if EBAY_SANDBOX
             else "https://svcs.ebay.com/services/search/FindingService/v1"
         )
-        
+
         params = {
             "OPERATION-NAME": "findItemsByKeywords",
             "SERVICE-VERSION": "1.13.0",
@@ -77,11 +130,11 @@ def search_ebay(query: str, limit: int = 5) -> list:
             "paginationInput.entriesPerPage": limit,
             "outputSelector": "SellerInfo",
         }
-        
-        response = requests.get(finding_endpoint, params=params, timeout=10)
+
+        response = requests.get(finding_endpoint, params=params, timeout=15)
         response.raise_for_status()
         data = response.json()
-        
+
         results = []
         try:
             items = data["findItemsByKeywordsResponse"][0]["searchResult"][0]["item"]
@@ -89,17 +142,13 @@ def search_ebay(query: str, limit: int = 5) -> list:
                 price = float(item["sellingStatus"][0]["currentPrice"][0]["__value__"])
                 title = item["title"][0]
                 url = item["viewItemURL"][0]
-                results.append({
-                    "title": title,
-                    "price": price,
-                    "url": url
-                })
+                results.append({"title": title, "price": price, "url": url})
         except (KeyError, IndexError):
             pass
-        
+
         return results
     except Exception as e:
-        logger.warning("eBay API error: %s. Falling back to mock data", e)
+        logger.warning("eBay API error: %s — falling back to mock data", e)
         return search_ebay_mock(query, limit)
 
 
@@ -132,11 +181,10 @@ def build_listing_payload(title: str, description: str, price: float, condition:
         },
         "price": {
             "value": str(price),
-            "currency": "USD"
+            "currency": "USD",
         },
         "condition": condition,
     }
-
 
 
 def publish_listing(payload: dict) -> dict:

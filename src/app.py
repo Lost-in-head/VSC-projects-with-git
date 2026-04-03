@@ -6,11 +6,13 @@ Provides a user-friendly interface to upload photos and generate listings
 import importlib
 import logging
 import os
-import uuid
+import tempfile
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
-from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
+from src.config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, MAX_CONTENT_LENGTH, HIGH_VALUE_THRESHOLD
+from src.logging_config import configure_logging
+from src.validators import ImageValidator
 from src.api.openai_client import describe_image
 from src.api.ebay_client import search_ebay, suggest_price, build_listing_payload, publish_listing
 from src.database import init_db, save_listing, get_all_listings, get_listing, update_listing_status, delete_listing, get_stats, record_publish_result
@@ -18,11 +20,11 @@ import src.settings_store as settings_store
 
 logger = logging.getLogger(__name__)
 
-HIGH_VALUE_THRESHOLD = 20.0
-
 
 def create_app():
     """Create and configure Flask application"""
+    configure_logging()
+
     app = Flask(__name__, template_folder='templates', static_folder='static')
 
     # Enable CORS for all API routes (required for mobile/desktop WebView clients)
@@ -30,7 +32,7 @@ def create_app():
 
     # Configuration
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+    app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
     app.config['JSON_SORT_KEYS'] = False
 
     # Initialize database
@@ -121,38 +123,44 @@ def create_app():
     @app.route('/api/upload', methods=['POST'])
     def upload_file():
         """Handle photo upload and initiate listing generation"""
+        if 'photo' not in request.files:
+            return jsonify({'error': 'No photo provided'}), 400
+
+        file = request.files['photo']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        original_filename = secure_filename(file.filename)
+
+        # Validate filename and file size via content-length hint when available
+        file_size = request.content_length or 0
+        is_valid, err_msg = ImageValidator.validate_upload(original_filename, file_size or 1)
+        if not is_valid:
+            return jsonify({'error': err_msg}), 400
+
+        # Save to a guaranteed-unique temp file; always cleaned up even on crash
+        suffix = os.path.splitext(original_filename)[1] or '.jpg'
+        tmp_path = None
         try:
-            # Check if file was included in request
-            if 'photo' not in request.files:
-                return jsonify({'error': 'No photo provided'}), 400
-            
-            file = request.files['photo']
-            if file.filename == '':
-                return jsonify({'error': 'No file selected'}), 400
+            with tempfile.NamedTemporaryFile(
+                suffix=suffix,
+                dir=app.config['UPLOAD_FOLDER'],
+                delete=False,
+            ) as tmp:
+                tmp_path = tmp.name
+                file.save(tmp_path)
 
-            filename = secure_filename(file.filename)
-            if not filename or not allowed_file(filename):
-                return jsonify({'error': 'Invalid file type. Use JPG, PNG, or GIF'}), 400
+            result = process_listing(tmp_path, original_filename)
 
-            # Save uploaded file with a unique prefix to avoid collisions
-            unique_prefix = uuid.uuid4().hex[:12]
-            filename = f"{unique_prefix}_{filename}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            
-            # Process the image through the pipeline
-            result = process_listing(filepath, filename)
-            
-            # Clean up uploaded file after processing
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            
-            # Return appropriate HTTP status based on processing outcome
-            status_code = 200 if result.get('success') else 500
-            return jsonify(result), status_code
-            
         except Exception as e:
+            logger.exception("Upload pipeline failed for %s", original_filename)
             return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+        status_code = 200 if result.get('success') else 500
+        return jsonify(result), status_code
     
     @app.route('/downloads/<filename>')
     def download_file(filename):
@@ -283,7 +291,8 @@ def create_app():
 
     @app.errorhandler(413)
     def request_entity_too_large(error):
-        return jsonify({'error': 'File too large. Max 16MB'}), 413
+        from src.config import MAX_UPLOAD_SIZE_MB
+        return jsonify({'error': f'File too large. Max {MAX_UPLOAD_SIZE_MB}MB'}), 413
     
     return app
 
@@ -383,7 +392,18 @@ def allowed_file(filename):
 def process_listing(image_path, filename='unknown.jpg'):
     """
     Process image through complete pipeline.
-    Supports either one detected item/card or multiple cards in a single image.
+
+    Always returns a normalised response::
+
+        {
+            'success': bool,
+            'listings': [ListingResult, ...],  # always a list
+            'count': int,
+            'high_value_threshold': float,
+            'message': str,
+        }
+
+    On failure ``listings`` is ``[]`` and an ``'error'`` key is present.
     """
     try:
         logger.info("Analyzing uploaded image...")
@@ -393,43 +413,36 @@ def process_listing(image_path, filename='unknown.jpg'):
         if not analyses:
             return {
                 'success': False,
+                'listings': [],
+                'count': 0,
+                'high_value_threshold': HIGH_VALUE_THRESHOLD,
                 'error': 'No items detected in image',
-                'message': '❌ Could not identify any items in the photo'
+                'message': '❌ Could not identify any items in the photo',
             }
 
         logger.info("Searching eBay for similar items...")
         results = [generate_listing_from_analysis(analysis, filename) for analysis in analyses]
-
-        if len(results) == 1:
-            result = results[0]
-            return {
-                'success': True,
-                'listing_id': result['listing_id'],
-                'analysis': result['analysis'],
-                'comparable_listings': result['comparable_listings'],
-                'suggested_price': result['suggested_price'],
-                'price_warning': result['price_warning'],
-                'payload': result['payload'],
-                'is_high_value': result['is_high_value'],
-                'high_value_threshold': HIGH_VALUE_THRESHOLD,
-                'message': '✅ Listing generated and saved successfully!'
-            }
-
+        count = len(results)
+        msg = (
+            f"✅ Generated {count} listing draft{'s' if count != 1 else ''} from one photo."
+        )
         return {
             'success': True,
-            'mode': 'multi_card',
-            'cards_detected': len(results),
-            'card_results': results,
+            'listings': results,
+            'count': count,
             'high_value_threshold': HIGH_VALUE_THRESHOLD,
-            'message': f'✅ Generated {len(results)} listing drafts from one photo.'
+            'message': msg,
         }
 
     except Exception as e:
-        logger.error("Error processing listing: %s", e)
+        logger.exception("Error processing listing for %s", filename)
         return {
             'success': False,
+            'listings': [],
+            'count': 0,
+            'high_value_threshold': HIGH_VALUE_THRESHOLD,
             'error': str(e),
-            'message': '❌ Failed to generate listing'
+            'message': '❌ Failed to generate listing',
         }
 
 

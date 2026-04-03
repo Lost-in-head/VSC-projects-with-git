@@ -80,3 +80,6 @@ Desktop.code-workspace
 !tests/test_smoke.py
 
 
+
+# Log files
+logs/

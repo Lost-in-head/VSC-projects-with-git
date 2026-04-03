@@ -1,3 +1,22 @@
+:root {
+      --color-primary: #667eea;
+      --color-primary-end: #764ba2;
+      --color-primary-gradient: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-end) 100%);
+      --color-text: #333;
+      --color-text-muted: #666;
+      --color-text-subtle: #999;
+      --color-surface: #ffffff;
+      --color-surface-alt: #f8f9fa;
+      --color-border: #e0e0e0;
+      --color-danger: #f44336;
+      --color-danger-bg: #ffebee;
+      --color-success: #4caf50;
+      --color-warning: #ff9800;
+      --radius-card: 15px;
+      --radius-sm: 8px;
+      --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
 * {
       margin: 0;
       padding: 0;
@@ -6,10 +25,10 @@
 
 body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: var(--color-primary-gradient);
       min-height: 100vh;
       padding: 20px;
-      color: #333;
+      color: var(--color-text);
 }
 
 .container {

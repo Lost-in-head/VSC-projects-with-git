@@ -80,9 +80,8 @@ def test_process_listing_multi_card_photo(monkeypatch):
 
     result = process_listing("multi_cards.jpg", "multi_cards.jpg")
     assert result["success"] is True
-    assert result["mode"] == "multi_card"
-    assert result["cards_detected"] == 2
-    assert len(result["card_results"]) == 2
+    assert result["count"] == 2
+    assert len(result["listings"]) == 2
 
 
 def test_process_listing_high_value_flag(monkeypatch):
@@ -101,7 +100,7 @@ def test_process_listing_high_value_flag(monkeypatch):
 
     result = process_listing('premium.jpg', 'premium.jpg')
     assert result['success'] is True
-    assert result['is_high_value'] is True
+    assert result['listings'][0]['is_high_value'] is True
     assert result['high_value_threshold'] == 20.0
 
 
@@ -121,7 +120,7 @@ def test_process_listing_low_value_flag(monkeypatch):
 
     result = process_listing('cheap.jpg', 'cheap.jpg')
     assert result['success'] is True
-    assert result['is_high_value'] is False
+    assert result['listings'][0]['is_high_value'] is False
 
 
 def test_process_listing_player_name_in_card_title(monkeypatch):
@@ -194,8 +193,8 @@ def test_process_listing_price_fallback_when_suggest_returns_none(monkeypatch):
 
     result = process_listing('item.jpg', 'item.jpg')
     assert result['success'] is True
-    assert result['suggested_price'] == 5.00
-    assert result['price_warning'] is True
+    assert result['listings'][0]['suggested_price'] == 5.00
+    assert result['listings'][0]['price_warning'] is True
 
 
 def test_process_listing_save_failure_returns_error(monkeypatch):

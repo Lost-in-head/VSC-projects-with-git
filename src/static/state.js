@@ -99,7 +99,10 @@ class AppState {
      */
     getHighValueResults() {
         return this.getSuccessfulResults()
-            .filter(r => r.data?.is_high_value === true);
+            .filter(r => Array.isArray(r.data?.listings)
+                ? r.data.listings.some(l => l.is_high_value === true)
+                : r.data?.is_high_value === true
+            );
     }
 
     /**

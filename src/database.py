@@ -5,6 +5,7 @@ Database models and operations for managing eBay listings
 import logging
 import sqlite3
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 from src.paths import get_db_path
@@ -14,12 +15,35 @@ logger = logging.getLogger(__name__)
 DATABASE_PATH = get_db_path()
 
 
-def init_db():
-    """Initialize database with listings table"""
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        cursor = conn.cursor()
+@contextmanager
+def get_db_connection(timeout: int = 30):
+    """
+    Context manager for safe database connections.
 
-        cursor.execute(
+    Commits on clean exit; rolls back and re-raises on any exception.
+
+    Usage::
+
+        with get_db_connection() as conn:
+            conn.execute("INSERT INTO listings …")
+    """
+    conn = sqlite3.connect(str(DATABASE_PATH), timeout=timeout)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def init_db():
+    """Initialize database with listings table and performance indexes."""
+    with get_db_connection() as conn:
+        conn.execute(
             '''
             CREATE TABLE IF NOT EXISTS listings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,25 +68,30 @@ def init_db():
         )
 
         # Backfill publish-tracking columns for older DBs
-        cursor.execute("PRAGMA table_info(listings)")
+        cursor = conn.execute("PRAGMA table_info(listings)")
         existing_columns = {row[1] for row in cursor.fetchall()}
         if "external_listing_id" not in existing_columns:
-            cursor.execute("ALTER TABLE listings ADD COLUMN external_listing_id TEXT")
+            conn.execute("ALTER TABLE listings ADD COLUMN external_listing_id TEXT")
         if "published_at" not in existing_columns:
-            cursor.execute("ALTER TABLE listings ADD COLUMN published_at TIMESTAMP")
+            conn.execute("ALTER TABLE listings ADD COLUMN published_at TIMESTAMP")
         if "publish_error" not in existing_columns:
-            cursor.execute("ALTER TABLE listings ADD COLUMN publish_error TEXT")
+            conn.execute("ALTER TABLE listings ADD COLUMN publish_error TEXT")
 
-        conn.commit()
+        # Performance indexes
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_listings_status ON listings (status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_listings_created_at ON listings (created_at DESC)"
+        )
+
 
 
 def save_listing(title, filename, analysis, comparable_listings, suggested_price, payload):
     """Save a generated listing to database"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute(
+        with get_db_connection() as conn:
+            cursor = conn.execute(
                 '''
                 INSERT INTO listings
                 (title, filename, category, condition, brand, model, features,
@@ -83,10 +112,7 @@ def save_listing(title, filename, analysis, comparable_listings, suggested_price
                     "draft",
                 ),
             )
-
-            listing_id = cursor.lastrowid
-            conn.commit()
-            return listing_id
+            return cursor.lastrowid
     except Exception as e:
         logger.error("Error saving listing: %s", e)
         return None
@@ -95,10 +121,8 @@ def save_listing(title, filename, analysis, comparable_listings, suggested_price
 def get_all_listings():
     """Get all listings from database"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute(
+        with get_db_connection() as conn:
+            cursor = conn.execute(
                 '''
                 SELECT id, title, filename, category, condition, brand, model,
                        suggested_price, status, created_at, updated_at
@@ -134,10 +158,8 @@ def get_all_listings():
 def get_listing(listing_id):
     """Get a specific listing by ID"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute(
+        with get_db_connection() as conn:
+            cursor = conn.execute(
                 '''
                 SELECT id, title, filename, category, condition, brand, model, features,
                        suggested_price, comparable_listings, payload, status, external_listing_id,
@@ -195,10 +217,8 @@ def get_listing(listing_id):
 def update_listing_status(listing_id, status):
     """Update listing status (draft, published, archived)"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute(
+        with get_db_connection() as conn:
+            cursor = conn.execute(
                 '''
                 UPDATE listings
                 SET status = ?, updated_at = CURRENT_TIMESTAMP
@@ -206,10 +226,7 @@ def update_listing_status(listing_id, status):
                 ''',
                 (status, listing_id),
             )
-
-            updated = cursor.rowcount
-            conn.commit()
-            return updated > 0
+            return cursor.rowcount > 0
     except Exception as e:
         logger.error("Error updating listing status: %s", e)
         return False
@@ -218,14 +235,9 @@ def update_listing_status(listing_id, status):
 def delete_listing(listing_id):
     """Delete a listing from database"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
-
-            deleted = cursor.rowcount
-            conn.commit()
-            return deleted > 0
+        with get_db_connection() as conn:
+            cursor = conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
+            return cursor.rowcount > 0
     except Exception as e:
         logger.error("Error deleting listing: %s", e)
         return False
@@ -234,20 +246,17 @@ def delete_listing(listing_id):
 def get_stats():
     """Get database statistics"""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute("SELECT COUNT(*) FROM listings")
-            total = cursor.fetchone()[0]
-
-            cursor.execute("SELECT COUNT(*) FROM listings WHERE status = 'draft'")
-            drafts = cursor.fetchone()[0]
-
-            cursor.execute("SELECT COUNT(*) FROM listings WHERE status = 'published'")
-            published = cursor.fetchone()[0]
-
-            cursor.execute("SELECT COUNT(*) FROM listings WHERE status = 'archived'")
-            archived = cursor.fetchone()[0]
+        with get_db_connection() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0]
+            drafts = conn.execute(
+                "SELECT COUNT(*) FROM listings WHERE status = 'draft'"
+            ).fetchone()[0]
+            published = conn.execute(
+                "SELECT COUNT(*) FROM listings WHERE status = 'published'"
+            ).fetchone()[0]
+            archived = conn.execute(
+                "SELECT COUNT(*) FROM listings WHERE status = 'archived'"
+            ).fetchone()[0]
 
         return {"total": total, "drafts": drafts, "published": published, "archived": archived}
     except Exception as e:
@@ -258,11 +267,9 @@ def get_stats():
 def record_publish_result(listing_id, published, external_listing_id=None, error_message=None):
     """Record publish success/failure metadata for a listing."""
     try:
-        with sqlite3.connect(DATABASE_PATH) as conn:
-            cursor = conn.cursor()
-
+        with get_db_connection() as conn:
             if published:
-                cursor.execute(
+                conn.execute(
                     '''
                     UPDATE listings
                     SET status = 'published',
@@ -275,7 +282,7 @@ def record_publish_result(listing_id, published, external_listing_id=None, error
                     (external_listing_id, listing_id),
                 )
             else:
-                cursor.execute(
+                conn.execute(
                     '''
                     UPDATE listings
                     SET publish_error = ?,
@@ -284,10 +291,11 @@ def record_publish_result(listing_id, published, external_listing_id=None, error
                     ''',
                     (error_message, listing_id),
                 )
-
-            updated = cursor.rowcount
-            conn.commit()
-            return updated > 0
+            # Verify the listing actually existed
+            affected = conn.execute(
+                "SELECT changes()"
+            ).fetchone()[0]
+            return affected > 0
     except Exception as e:
         logger.error("Error recording publish result: %s", e)
         return False
