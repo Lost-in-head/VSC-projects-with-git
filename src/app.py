@@ -132,9 +132,11 @@ def create_app():
 
         original_filename = secure_filename(file.filename)
 
-        # Validate filename and file size via content-length hint when available
-        file_size = request.content_length or 0
-        is_valid, err_msg = ImageValidator.validate_upload(original_filename, file_size or 1)
+        # Validate filename. Use actual file size when content-length is available;
+        # pass 1 as a placeholder when unknown so the size check is skipped here
+        # (the web server enforces MAX_CONTENT_LENGTH independently).
+        file_size = request.content_length if request.content_length is not None else 1
+        is_valid, err_msg = ImageValidator.validate_upload(original_filename, file_size)
         if not is_valid:
             return jsonify({'error': err_msg}), 400
 
@@ -441,7 +443,7 @@ def process_listing(image_path, filename='unknown.jpg'):
             'listings': [],
             'count': 0,
             'high_value_threshold': HIGH_VALUE_THRESHOLD,
-            'error': str(e),
+            'error': 'Failed to generate listing',
             'message': '❌ Failed to generate listing',
         }
 

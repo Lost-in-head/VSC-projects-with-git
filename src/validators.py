@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 class ImageValidator:
     """Validates uploaded image files."""
 
-    ALLOWED_TYPES = {'jpg', 'jpeg', 'png', 'gif'}
-    MAX_SIZE_BYTES = 16 * 1024 * 1024  # 16 MB
+    ALLOWED_TYPES = {'jpg', 'jpeg', 'png', 'gif'}  # Kept in sync with config.ALLOWED_EXTENSIONS
+    MAX_SIZE_BYTES = 16 * 1024 * 1024  # 16 MB — override via MAX_UPLOAD_SIZE_MB env var
     MAX_FILENAME_LENGTH = 256
     FORBIDDEN_CHARS = {'\x00', '/', '\\'}
 

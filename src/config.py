@@ -38,7 +38,8 @@ EBAY_API_ENDPOINT = (
 DEBUG = _parse_bool(os.getenv("DEBUG"), default=False)
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-# Mock APIs (for development without credentials)
+# Mock APIs — default to mock so the app works out-of-the-box without credentials.
+# Set USE_OPENAI_MOCK=False and USE_EBAY_MOCK=False in .env to use real APIs.
 USE_OPENAI_MOCK = _parse_bool(os.getenv("USE_OPENAI_MOCK"), default=True)
 USE_EBAY_MOCK = _parse_bool(os.getenv("USE_EBAY_MOCK"), default=True)
 

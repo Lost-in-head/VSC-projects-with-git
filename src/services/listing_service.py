@@ -160,7 +160,9 @@ class ListingService:
         Non-dict elements in the list are filtered out. An empty cards list (or
         one with no valid dicts) falls back to wrapping the parent dict in a list.
         """
-        if isinstance(image_analysis, dict) and isinstance(image_analysis.get('cards'), list):
+        if not isinstance(image_analysis, dict):
+            return []
+        if isinstance(image_analysis.get('cards'), list):
             cards = [c for c in image_analysis['cards'] if isinstance(c, dict)]
             # Fall back to parent dict when no valid card dicts were found
             return cards if cards else [image_analysis]
