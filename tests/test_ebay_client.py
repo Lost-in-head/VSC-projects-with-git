@@ -237,12 +237,18 @@ def test_create_offer_returns_offer_id(real_ebay_mode, monkeypatch):
     monkeypatch.setattr(ebay_client, "EBAY_DEFAULT_CATEGORY_ID", "64482")
 
     class FakeTokenResponse:
-        def raise_for_status(self): pass
-        def json(self): return {"access_token": "tok"}
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"access_token": "tok"}
 
     class FakeOfferResponse:
-        def raise_for_status(self): pass
-        def json(self): return {"offerId": "offer-xyz"}
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"offerId": "offer-xyz"}
 
     posted_bodies = []
 
@@ -270,12 +276,18 @@ def test_create_offer_raises_when_no_offer_id(real_ebay_mode, monkeypatch):
     monkeypatch.setattr(ebay_client, "EBAY_API_ENDPOINT", "https://api.sandbox.ebay.com")
 
     class FakeTokenResponse:
-        def raise_for_status(self): pass
-        def json(self): return {"access_token": "tok"}
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"access_token": "tok"}
 
     class FakeOfferResponse:
-        def raise_for_status(self): pass
-        def json(self): return {}  # no offerId
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {}  # no offerId
 
     def fake_post(url, *args, **kwargs):
         if "oauth2/token" in url:
@@ -296,12 +308,18 @@ def test_publish_offer_returns_listing_id(real_ebay_mode, monkeypatch):
     monkeypatch.setattr(ebay_client, "EBAY_API_ENDPOINT", "https://api.sandbox.ebay.com")
 
     class FakeTokenResponse:
-        def raise_for_status(self): pass
-        def json(self): return {"access_token": "tok"}
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"access_token": "tok"}
 
     class FakePublishResponse:
-        def raise_for_status(self): pass
-        def json(self): return {"listingId": "LIVE-12345"}
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"listingId": "LIVE-12345"}
 
     posted_urls = []
 
@@ -323,12 +341,18 @@ def test_publish_offer_raises_when_no_listing_id(real_ebay_mode, monkeypatch):
     monkeypatch.setattr(ebay_client, "EBAY_API_ENDPOINT", "https://api.sandbox.ebay.com")
 
     class FakeTokenResponse:
-        def raise_for_status(self): pass
-        def json(self): return {"access_token": "tok"}
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"access_token": "tok"}
 
     class FakePublishResponse:
-        def raise_for_status(self): pass
-        def json(self): return {}  # no listingId
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {}  # no listingId
 
     def fake_post(url, *args, **kwargs):
         if "oauth2/token" in url:
