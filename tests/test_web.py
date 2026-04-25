@@ -303,3 +303,11 @@ def test_get_listings_returns_list_sorted_newest_first(client):
     assert response.status_code == 200
     titles = [l['title'] for l in data]
     assert titles[0] == 'Second'  # newest first
+
+
+def test_health_check(client):
+    response = client.get('/api/health')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['status'] == 'ok'
+    assert 'version' in data

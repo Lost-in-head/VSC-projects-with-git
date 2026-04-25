@@ -41,6 +41,11 @@ def create_app():
     # Ensure upload folder exists
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
+    @app.route('/api/health', methods=['GET'])
+    def health_check():
+        """Health check endpoint for mobile clients"""
+        return jsonify({'status': 'ok', 'version': '1.0.0'}), 200
+
     @app.route('/')
     def index():
         """Home page - upload form"""
